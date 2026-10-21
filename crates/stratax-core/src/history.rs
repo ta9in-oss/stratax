@@ -55,8 +55,15 @@ pub fn record_and_compare(r: &Report) -> anyhow::Result<Option<Growth>> {
         disks: r.disks.iter().filter_map(|d| Some((d.mount.as_ref()?.display().to_string(), d.used))).collect(),
         paths: r.findings.iter().take(400).map(|f| (f.path.display().to_string(), f.bytes)).collect(),
     };
-    let prev = load()?;
+    let mut prev = load()?;
     std::fs::create_dir_all(data_dir())?;
+    // Keep 30 days; rewrite the file when trimming so it never grows unbounded.
+    let cutoff = snap.at - 30 * 86_400;
+    if prev.first().is_some_and(|s| s.at < cutoff) {
+        prev.retain(|s| s.at >= cutoff);
+        let body: String = prev.iter().filter_map(|s| serde_json::to_string(s).ok()).map(|l| l + "\n").collect();
+        std::fs::write(file(), body)?;
+    }
     let mut fh = std::fs::OpenOptions::new().create(true).append(true).open(file())?;
     writeln!(fh, "{}", serde_json::to_string(&snap)?)?;
     // Movers: against the newest snapshot ≥ 10 min old (what changed lately).

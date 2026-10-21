@@ -1,6 +1,6 @@
 import { S, go, touchSelection } from '../app.js';
 import { t, fmtDate, fmtAge, fmtInt } from '../i18n.js';
-import { icon, esc, B, L, tilde, midTrunc, safetyBadge, ownerChip, catColor, idleText, isFsPath, toolOf, codeLine, CATS } from '../ui.js';
+import { icon, esc, B, L, tilde, midTrunc, safetyBadge, ownerChip, catColor, idleText, isFsPath, toolOf, codeLine, CATS, selectionBytes } from '../ui.js';
 import { openExplorerAt } from './explorer.js';
 
 const F = { q: '', cats: new Set(), owners: new Set(), safety: new Set(), sort: 'size', open: new Set(), expanded: new Set(), limit: {}, menu: null, init: false };
@@ -126,7 +126,7 @@ function toolsHtml(r) {
 function barHtml(r) {
   const sel = r.findings.filter((f) => S.selected.has(f.id));
   if (!sel.length) return '';
-  const total = sel.reduce((s, f) => s + f.bytes, 0);
+  const total = selectionBytes(sel);
   const mix = { safe: 0, rebuild: 0, review: 0 };
   sel.forEach((f) => { mix[f.safety] += f.bytes; });
   const movable = sel.some((f) => f.relocate_to);

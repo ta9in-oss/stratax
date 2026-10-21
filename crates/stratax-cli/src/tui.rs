@@ -682,7 +682,7 @@ impl App {
 
         // reclaim summary
         let sel: Vec<&Finding> = r.findings.iter().filter(|f| self.selected.contains(&f.id)).collect();
-        let sel_bytes: u64 = sel.iter().map(|f| f.bytes).sum();
+        let sel_bytes = clean::selection_bytes(&sel);
         let blk = Self::panel("Recommended now");
         let bi = blk.inner(bottom);
         f.render_widget(blk, bottom);
@@ -706,7 +706,7 @@ impl App {
     fn draw_findings(&mut self, f: &mut Frame, a: Rect) {
         let Some(r) = &self.report else { return };
         let [bar, table] = Layout::vertical([Constraint::Length(1), Constraint::Min(3)]).areas(a);
-        let sel_bytes: u64 = r.findings.iter().filter(|f| self.selected.contains(&f.id)).map(|f| f.bytes).sum();
+        let sel_bytes = clean::selection_bytes(&r.findings.iter().filter(|f| self.selected.contains(&f.id)).collect::<Vec<_>>());
         let filt = if self.filtering || !self.filter.is_empty() { format!("  filter: {}{}", self.filter, if self.filtering { "▏" } else { "" }) } else { String::new() };
         f.render_widget(
             Paragraph::new(Line::from(vec![

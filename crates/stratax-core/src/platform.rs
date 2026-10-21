@@ -138,7 +138,24 @@ pub mod linux {
                     cwd.as_ref()?;
                     let name = fs::read_to_string(base.join("comm")).unwrap_or_default().trim().to_string();
                     let mut open = Vec::new();
+                    // The running binary and its mapped libraries are "in use" too:
+                    // a venv python symlinks into ~/.pyenv, which no fd reveals.
+                    if let Ok(exe) = fs::read_link(base.join("exe")) {
+                        open.push(exe);
+                    }
                     if with_fds {
+                        if let Ok(maps) = fs::read_to_string(base.join("maps")) {
+                            let home = super::home();
+                            let mut seen = std::collections::HashSet::new();
+                            for l in maps.lines() {
+                                if let Some(i) = l.find('/') {
+                                    let p = Path::new(l[i..].trim_end_matches(" (deleted)"));
+                                    if p.starts_with(&home) && seen.insert(p.to_path_buf()) {
+                                        open.push(p.to_path_buf());
+                                    }
+                                }
+                            }
+                        }
                         if let Ok(fds) = fs::read_dir(base.join("fd")) {
                             for fd in fds.flatten() {
                                 if let Ok(t) = fs::read_link(fd.path()) {

@@ -65,3 +65,12 @@ export function codeBlock(lines) {
   const txt = lines.join('\n');
   return `<div class="code multi"><pre>${lines.map((l) => `<span class="prompt">$</span> ${esc(l)}`).join('\n')}</pre><button class="btn sm ghost" data-act="copy" data-copy="${esc(txt)}">${icon('copy')}<span>${esc(t('common.copy'))}</span></button></div>`;
 }
+
+/** Bytes a selection frees, counting a finding nested in another selected one once
+ *  (e.g. a Rust target/ and its own incremental/ cache). Mirrors clean::selection_bytes. */
+export function selectionBytes(list) {
+  const fs = list.filter((f) => !String(f.path).startsWith('docker://'));
+  return list
+    .filter((f) => !fs.some((o) => o.id !== f.id && f.path !== o.path && String(f.path).startsWith(o.path + '/')))
+    .reduce((s, f) => s + f.bytes, 0);
+}

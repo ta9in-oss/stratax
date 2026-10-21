@@ -36,6 +36,14 @@ pub fn execute(findings: &[Finding], dry_run: bool) -> Vec<Outcome> {
         .collect()
 }
 
+/// Bytes a selection would free, counting nested findings once.
+pub fn selection_bytes(sel: &[&Finding]) -> u64 {
+    sel.iter()
+        .filter(|f| !sel.iter().any(|o| o.id != f.id && !o.path.starts_with("docker://") && f.path.starts_with(&o.path) && f.path != o.path))
+        .map(|f| f.bytes)
+        .sum()
+}
+
 fn covered_path(f: &Finding) -> PathBuf {
     // `<target>/*/incremental` style paths: compare on the concrete prefix.
     f.path.ancestors().find(|p| !p.to_string_lossy().contains('*')).unwrap_or(&f.path).to_path_buf()
@@ -55,8 +63,11 @@ fn run_one(f: &Finding, guard: &Guard, dry: bool) -> Outcome {
     }
     let res = match &f.action {
         Action::ReviewOnly => Err("review-only: nothing automatic".to_string()),
-        Action::Delete { paths } => delete(paths, dry).map(|b| {
-            o.freed = b;
+        Action::Delete { paths } => delete(paths, dry).map(|_| {
+            // The scan already measured it; re-walking here would re-stat
+            // hundreds of GB at full priority just to print a number.
+            o.freed = f.bytes;
+            let b = f.bytes;
             format!("{} {}", if dry { "would free" } else { "freed" }, human_bytes(b))
         }),
         Action::RunTool { program, args } => {
@@ -124,22 +135,19 @@ fn allowed(p: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn delete(paths: &[PathBuf], dry: bool) -> Result<u64, String> {
-    let mut freed = 0;
+fn delete(paths: &[PathBuf], dry: bool) -> Result<(), String> {
     for p in paths {
         if std::fs::symlink_metadata(p).is_err() {
             continue; // already gone
         }
         allowed(p)?;
-        let u = crate::walk::usage(p).bytes;
         if !dry {
             let meta = std::fs::symlink_metadata(p).map_err(|e| format!("{}: {e}", p.display()))?;
             let r = if meta.is_dir() { std::fs::remove_dir_all(p) } else { std::fs::remove_file(p) };
             r.map_err(|e| format!("{}: {e}", p.display()))?;
         }
-        freed += u;
     }
-    Ok(freed)
+    Ok(())
 }
 
 fn relocate(src: &Path, root: &Path, dry: bool) -> Result<String, String> {
@@ -185,7 +193,7 @@ mod tests {
         std::fs::write(target.join("debug/incremental/x"), vec![0u8; 32 * 1024]).unwrap();
         let mk = |id: &str, path: PathBuf, paths: Vec<PathBuf>| Finding {
             id: id.into(), rule: id.into(), title: id.into(), path, category: Category::BuildArtifact, owner: None, safety: Safety::Safe,
-            bytes: 1, files: 0, last_activity: None, reason: String::new(), action: Action::Delete { paths }, protected: None,
+            bytes: 4096, files: 0, last_activity: None, reason: String::new(), action: Action::Delete { paths }, protected: None,
             preselected: true, relocate_to: None,
         };
         let outer = mk("target", target.clone(), vec![target.clone()]);

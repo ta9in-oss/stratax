@@ -14,7 +14,10 @@ pub struct Guard {
 
 impl Guard {
     pub fn new(plat: &dyn Platform) -> Self {
-        let procs = plat.process_paths(true);
+        Self::with_procs(plat.process_paths(true))
+    }
+
+    pub fn with_procs(procs: Vec<ProcPaths>) -> Self {
         let mut active = BTreeMap::new();
         for p in &procs {
             let who = format!("{} (pid {})", p.name, p.pid);

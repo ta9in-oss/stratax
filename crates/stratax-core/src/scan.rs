@@ -245,11 +245,26 @@ fn expand_known(k: &rules::Known, base: PathBuf) -> Vec<Finding> {
                 })
                 .collect()
         }
+        "tool.pyenv" => {
+            let global = fs::read_to_string(base.parent().unwrap().join("version")).unwrap_or_default();
+            let keep: Vec<String> = global.split_whitespace().map(str::to_string).collect();
+            children(&base)
+                .into_par_iter()
+                .filter(|p| p.is_dir() && !keep.contains(&name(p)))
+                .map(|p| one(p.clone(), format!("Python {}", name(&p)), "Not the pyenv global version. Check no project pins it in .python-version.".into(), How::Delete))
+                .collect()
+        }
         "tool.nvm" => {
+            // GUI launches have no NVM_BIN: fall back to the nvm default alias.
+            let nvm = base.parent().and_then(Path::parent).unwrap_or(&base).to_path_buf();
+            let default = fs::read_to_string(nvm.join("alias/default")).ok().map(|v| {
+                let v = v.trim().trim_start_matches('v').to_string();
+                base.join(format!("v{v}"))
+            });
             let current = std::env::var("NVM_BIN").ok().and_then(|b| PathBuf::from(b).parent().map(Path::to_path_buf));
             children(&base)
                 .into_par_iter()
-                .filter(|p| current.as_deref() != Some(p.as_path()))
+                .filter(|p| current.as_deref() != Some(p.as_path()) && default.as_deref() != Some(p.as_path()))
                 .map(|p| one(p.clone(), format!("Node {}", name(&p)), "Not the active nvm version.".into(), How::Delete))
                 .collect()
         }
@@ -375,7 +390,9 @@ fn generic_cache(home: &Path) -> Vec<Finding> {
         .map(|e| {
             let p = e.path();
             let n = e.file_name().to_string_lossy().into_owned();
-            mk("cache.generic", format!("~/.cache/{n}"), p.clone(), Category::AppCache, None, Safety::Safe, "XDG cache directory: apps must tolerate it disappearing.", Action::Delete { paths: vec![p] })
+            mk("cache.generic", format!("~/.cache/{n}"), p.clone(), Category::AppCache, None, Safety::Rebuild,
+                "XDG cache directory that no specific rule knows. Apps must tolerate it disappearing, but some keep expensive-to-rebuild data here (embeddings, indexes) — check before deleting large ones.",
+                Action::Delete { paths: vec![p] })
         })
         .collect()
 }
@@ -402,7 +419,7 @@ fn docker_findings() -> Vec<Finding> {
             let (rule, args, safety, why): (&str, &[&str], Safety, &str) = match ty.as_str() {
                 "Images" => ("docker.images", &["image", "prune", "-a", "-f"], Safety::Rebuild, "Images not used by any container; pulled again on demand."),
                 "Containers" => ("docker.containers", &["container", "prune", "-f"], Safety::Rebuild, "Stopped containers and their writable layers."),
-                "Local Volumes" => ("docker.volumes", &["volume", "prune", "-a", "-f"], Safety::Review, "Volumes no container references — may hold databases from old dev stacks."),
+                "Local Volumes" => ("docker.volumes", &["volume", "prune", "-f"], Safety::Review, "Volumes no container references — may hold databases from old dev stacks. The action prunes anonymous volumes only; `docker volume prune -a` also removes named ones, check them first."),
                 "Build Cache" => ("docker.build-cache", &["builder", "prune", "-a", "-f"], Safety::Safe, "BuildKit layer cache; agents running `docker build` grow this fast."),
                 _ => return None,
             };
@@ -532,6 +549,11 @@ pub fn preselect(f: &Finding, now: i64) -> bool {
     if f.protected.is_some() || matches!(f.action, Action::ReviewOnly) {
         return false;
     }
+    // Toolchains break every project at once when guessed wrong; unknown big
+    // caches may hold embeddings or indexes. Both are opt-in only.
+    if f.category == Category::Toolchain || (f.rule == "cache.generic" && f.bytes > 1 << 30) {
+        return false;
+    }
     let age = f.last_activity.map(|t| now - t).unwrap_or(i64::MAX);
     match f.safety {
         Safety::Review => false,
@@ -622,6 +644,41 @@ mod tests {
         assert!(preselect(&f, now));
         f.protected = Some("busy".into());
         assert!(!preselect(&f, now));
+    }
+
+    #[test]
+    fn live_claude_project_protects_its_sessions() {
+        let now = 1_000_000;
+        let cwd = Path::new("/home/u/work/my_app");
+        let slug = rules::claude_slug(cwd);
+        assert_eq!(slug, "-home-u-work-my-app");
+        let guard = Guard::with_procs(vec![crate::platform::ProcPaths { pid: 7, name: "claude".into(), cwd: Some(cwd.into()), open: vec![] }]);
+        let mut f = |dir: &str, age: i64| Finding {
+            id: dir.into(), rule: "claude.tmp-sessions".into(), title: "s".into(), path: PathBuf::from(format!("/tmp/claude-1000/{dir}/abc")),
+            category: Category::AgentSession, owner: None, safety: Safety::Safe, bytes: 1, files: 0, last_activity: Some(now - age),
+            reason: String::new(), action: Action::Delete { paths: vec![] }, protected: None, preselected: false, relocate_to: None,
+        };
+        let mut v = vec![f(&slug, 5 * HOUR), f("-home-u-other", 5 * HOUR), f("-home-u-other", 10 * 60)];
+        apply_guards(&mut v, &guard, now);
+        assert!(v[0].protected.is_some(), "live project session");
+        assert!(v[1].protected.is_none(), "dead project, 5h idle");
+        assert!(v[2].protected.is_some(), "touched 10 minutes ago");
+    }
+
+    #[test]
+    fn toolchains_and_big_unknown_caches_are_opt_in() {
+        let now = 100 * DAY;
+        let mut f = Finding {
+            id: "x".into(), rule: "tool.pyenv".into(), title: "t".into(), path: "/x".into(), category: Category::Toolchain, owner: None,
+            safety: Safety::Rebuild, bytes: 5 << 30, files: 0, last_activity: Some(0), reason: String::new(),
+            action: Action::Delete { paths: vec![] }, protected: None, preselected: false, relocate_to: None,
+        };
+        assert!(!preselect(&f, now));
+        f.category = Category::AppCache;
+        f.rule = "cache.generic".into();
+        assert!(!preselect(&f, now));
+        f.bytes = 100 << 20;
+        assert!(preselect(&f, now));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 import { S, go, touchSelection } from '../app.js';
 import { t, fmtPct, fmtBytes, fmtAge } from '../i18n.js';
-import { icon, esc, B, L, CATS, catColor, rich, codeLine } from '../ui.js';
+import { icon, esc, B, L, CATS, catColor, rich, codeLine, selectionBytes } from '../ui.js';
 import { openCleanup } from './cleanup.js';
 import { setCategoryFilter } from './findings.js';
 
@@ -37,7 +37,7 @@ function rootPanel(r) {
 
 function reclaimPanel(r) {
   const pre = preselected(r);
-  const total = pre.reduce((s, f) => s + f.bytes, 0);
+  const total = selectionBytes(pre);
   const bySafety = { safe: 0, rebuild: 0, review: 0 };
   pre.forEach((f) => { bySafety[f.safety] += f.bytes; });
   return `<div class="panel ov-reclaim fade-in" style="animation-delay:.05s">
