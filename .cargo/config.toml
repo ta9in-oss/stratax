@@ -1,0 +1,4 @@
+# Local shim for machines without the WebKitGTK -dev packages (see README).
+# Remove once `sudo apt install libwebkit2gtk-4.1-dev librsvg2-dev` is done.
+[env]
+PKG_CONFIG_PATH = { value = ".devlibs/pkgconfig", relative = true }

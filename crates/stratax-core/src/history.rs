@@ -1,0 +1,95 @@
+//! Snapshots between scans, so we can answer "what keeps growing back?" and
+//! "when will the disk be full?".
+
+use crate::model::Report;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::io::{BufRead, Write};
+use std::path::PathBuf;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Snapshot {
+    at: i64,
+    /// mount → used bytes
+    disks: HashMap<String, u64>,
+    /// path → bytes, for the largest findings
+    paths: HashMap<String, u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Growth {
+    pub since: i64,
+    pub disks: Vec<DiskGrowth>,
+    /// Paths whose size changed most since the reference snapshot.
+    pub movers: Vec<Mover>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiskGrowth {
+    pub mount: String,
+    pub delta: i64,
+    pub per_day: f64,
+    /// Days until full at the current rate (None when shrinking / flat).
+    pub days_to_full: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Mover {
+    pub path: String,
+    pub delta: i64,
+    pub now: u64,
+}
+
+pub fn data_dir() -> PathBuf {
+    let base = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).unwrap_or_else(|| crate::platform::home().join(".local/share"));
+    base.join("stratax")
+}
+
+fn file() -> PathBuf {
+    data_dir().join("history.jsonl")
+}
+
+pub fn record_and_compare(r: &Report) -> anyhow::Result<Option<Growth>> {
+    let snap = Snapshot {
+        at: r.generated_at,
+        disks: r.disks.iter().filter_map(|d| Some((d.mount.as_ref()?.display().to_string(), d.used))).collect(),
+        paths: r.findings.iter().take(400).map(|f| (f.path.display().to_string(), f.bytes)).collect(),
+    };
+    let prev = load()?;
+    std::fs::create_dir_all(data_dir())?;
+    let mut fh = std::fs::OpenOptions::new().create(true).append(true).open(file())?;
+    writeln!(fh, "{}", serde_json::to_string(&snap)?)?;
+    // Compare with the newest snapshot at least 10 minutes old.
+    let Some(base) = prev.into_iter().rev().find(|s| snap.at - s.at >= 600) else { return Ok(None) };
+    Ok(Some(compare(&base, &snap, r)))
+}
+
+fn load() -> anyhow::Result<Vec<Snapshot>> {
+    let Ok(f) = std::fs::File::open(file()) else { return Ok(vec![]) };
+    Ok(std::io::BufReader::new(f).lines().map_while(Result::ok).filter_map(|l| serde_json::from_str(&l).ok()).collect())
+}
+
+fn compare(base: &Snapshot, now: &Snapshot, r: &Report) -> Growth {
+    let days = ((now.at - base.at) as f64 / 86_400.0).max(1e-6);
+    let disks = r
+        .disks
+        .iter()
+        .filter_map(|d| {
+            let m = d.mount.as_ref()?.display().to_string();
+            let before = *base.disks.get(&m)?;
+            let delta = d.used as i64 - before as i64;
+            let per_day = delta as f64 / days;
+            let days_to_full = (per_day > 0.0).then(|| d.available as f64 / per_day);
+            Some(DiskGrowth { mount: m, delta, per_day, days_to_full })
+        })
+        .collect();
+    let mut movers: Vec<Mover> = now
+        .paths
+        .iter()
+        .map(|(p, &b)| Mover { path: p.clone(), delta: b as i64 - *base.paths.get(p).unwrap_or(&0) as i64, now: b })
+        .filter(|m| m.delta.unsigned_abs() > 64 << 20)
+        .collect();
+    movers.sort_by_key(|m| -m.delta);
+    movers.truncate(15);
+    Growth { since: base.at, disks, movers }
+}

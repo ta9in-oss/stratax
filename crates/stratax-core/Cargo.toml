@@ -1,0 +1,17 @@
+[package]
+name = "stratax-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rayon.workspace = true
+libc.workspace = true
+sysinfo.workspace = true
+ureq.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

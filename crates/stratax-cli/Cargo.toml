@@ -1,0 +1,18 @@
+[package]
+name = "stratax"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Disk + resource analyzer that understands AI coding agents (CLI + TUI)"
+
+[[bin]]
+name = "stratax"
+path = "src/main.rs"
+
+[dependencies]
+stratax-core = { path = "../stratax-core" }
+anyhow.workspace = true
+serde_json.workspace = true
+clap = { version = "4", features = ["derive"] }
+ratatui = "0.29"
+crossterm = "0.28"
