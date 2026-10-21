@@ -42,15 +42,17 @@ pub fn uid() -> u32 {
     unsafe { libc::getuid() }
 }
 
-/// Drop the calling thread to nice 10 and the idle I/O class.
+/// Drop the calling thread to nice 10 and the lowest best-effort I/O level.
+/// (The idle class looks nicer on paper but starves completely while agents
+/// keep the disk busy compiling — a scan then takes many minutes.)
 pub fn lower_priority() {
     unsafe {
         libc::setpriority(libc::PRIO_PROCESS, 0, 10);
         #[cfg(target_os = "linux")]
         {
             const IOPRIO_WHO_PROCESS: libc::c_long = 1;
-            const IOPRIO_CLASS_IDLE: libc::c_long = 3;
-            libc::syscall(libc::SYS_ioprio_set, IOPRIO_WHO_PROCESS, 0 as libc::c_long, IOPRIO_CLASS_IDLE << 13);
+            const IOPRIO_CLASS_BE: libc::c_long = 2;
+            libc::syscall(libc::SYS_ioprio_set, IOPRIO_WHO_PROCESS, 0 as libc::c_long, (IOPRIO_CLASS_BE << 13) | 7);
         }
     }
 }

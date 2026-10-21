@@ -59,9 +59,17 @@ pub fn record_and_compare(r: &Report) -> anyhow::Result<Option<Growth>> {
     std::fs::create_dir_all(data_dir())?;
     let mut fh = std::fs::OpenOptions::new().create(true).append(true).open(file())?;
     writeln!(fh, "{}", serde_json::to_string(&snap)?)?;
-    // Compare with the newest snapshot at least 10 minutes old.
-    let Some(base) = prev.into_iter().rev().find(|s| snap.at - s.at >= 600) else { return Ok(None) };
-    Ok(Some(compare(&base, &snap, r)))
+    // Movers: against the newest snapshot ≥ 10 min old (what changed lately).
+    // Fill rate: against the oldest one within 7 days, so one burst (a
+    // mutation run filling /tmp) does not read as "full in 5 hours".
+    let Some(recent) = prev.iter().rev().find(|s| snap.at - s.at >= 600) else { return Ok(None) };
+    let long = prev.iter().find(|s| snap.at - s.at <= 7 * 86_400).filter(|s| snap.at - s.at >= 3600);
+    let mut g = compare(recent, &snap, r);
+    match long {
+        Some(base) => g.disks = compare(base, &snap, r).disks,
+        None => g.disks.iter_mut().for_each(|d| d.days_to_full = None),
+    }
+    Ok(Some(g))
 }
 
 fn load() -> anyhow::Result<Vec<Snapshot>> {

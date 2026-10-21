@@ -41,7 +41,7 @@ or a download cache.
    `~/.local/share/stratax/operations.log`.
 4. **The AI never deletes** — it receives sizes, ages, labels and finding ids, and answers with ids.
    Unknown or protected ids are dropped.
-5. **Gentle scanning** — walks run on half the cores at nice 10 and the idle I/O class (`--turbo` for full
+5. **Gentle scanning** — walks run on half the cores at nice 10 and the lowest best-effort I/O priority (`--turbo` for full
    speed). Peak RSS of a full scan here: ~35 MB.
 
 ## AI advisor

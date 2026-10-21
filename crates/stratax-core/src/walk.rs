@@ -128,8 +128,11 @@ fn walk_dir(ctx: &Ctx, dir: &Path, depth: usize) -> DirNode {
     }
     let rd = match fs::read_dir(dir) {
         Ok(rd) => rd,
-        Err(_) => {
-            p.unreadable.fetch_add(1, Ordering::Relaxed);
+        Err(e) => {
+            // Vanishing dirs (agents and mutation runs churn temp trees) are not "unreadable".
+            if e.kind() != std::io::ErrorKind::NotFound {
+                p.unreadable.fetch_add(1, Ordering::Relaxed);
+            }
             return node;
         }
     };
