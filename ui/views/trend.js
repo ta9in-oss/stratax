@@ -46,7 +46,7 @@ function body(r) {
   const eta = g && g.days_to_full != null && g.per_day > 0 ? t('tr.full_in', { count: Math.max(1, Math.round(g.days_to_full)) }) : t('tr.not_filling');
   const rows = pts.map((p) => `<tr><td>${esc(fmtDate(p.at))}</td><td>${esc(fmtBytes(p.used))}</td></tr>`).join('');
   return `<div class="tr-stats">
-      <div><span class="kicker">${esc(t('tr.now'))}</span><b>${B(last.used)}</b><span class="faint">${esc(t('tr.of', { size: fmtBytes(disk.used + disk.available) }))}</span></div>
+      <div><span class="kicker">${esc(t('tr.now'))}</span><b>${B(last.used)}</b><span class="faint">${esc(t('tr.of', { size: fmtBytes(disk.total) }))}</span></div>
       <div><span class="kicker">${esc(t('tr.week'))}</span><b class="${d7 > 0 ? 'up' : 'down'}"><bdi class="num" dir="ltr">${d7 >= 0 ? '+' : '−'}${esc(fmtBytes(Math.abs(d7)))}</bdi></b></div>
       <div><span class="kicker">${esc(t('tr.outlook'))}</span><b>${esc(eta)}</b></div>
     </div>

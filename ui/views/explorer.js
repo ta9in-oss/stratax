@@ -105,9 +105,9 @@ function layout() {
   const cells = squarify(items, width, height);
   const base = pathOf(X.stack.length - 1);
   box.innerHTML = cells.map((c) => {
-    // Name + size need ~46px; name alone ~26px. Smaller cells keep only the tooltip.
+    // Name + size need ~46px; name alone ~32px (7px padding each side + a 16px line). Smaller cells keep only the tooltip.
     const big = c.w > 64 && c.h >= 46;
-    const mid = !big && c.w > 52 && c.h >= 26;
+    const mid = !big && c.w > 52 && c.h >= 32;
     const st = `left:${c.x.toFixed(1)}px;top:${c.y.toFixed(1)}px;width:${c.w.toFixed(1)}px;height:${c.h.toFixed(1)}px`;
     if (c.other) return `<div class="tcell other" style="${st}" title="${esc(t('ex.other'))} · ${esc(fmtBytes(c.v))}">${big ? `<div class="tc-in"><span class="tc-n" style="font-family:var(--font)">${esc(t('ex.other'))}</span><span class="tc-b">${esc(fmtBytes(c.v))}</span></div>` : ''}</div>`;
     const p = base.replace(/\/$/, '') + '/' + c.node.name;

@@ -126,7 +126,17 @@ async fn advisor_chat(
     config: Option<advisor::AdvisorConfig>,
 ) -> R<String> {
     let report = state.report.lock().unwrap().clone().ok_or("run a scan first")?;
-    let live = state.sampler.lock().unwrap().get_or_insert_with(Sampler::new).sample();
+    let live = {
+        let mut guard = state.sampler.lock().unwrap();
+        // CPU usage needs two readings: warm up a sampler that was just created.
+        if guard.is_none() {
+            let mut s = Sampler::new();
+            s.sample();
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            *guard = Some(s);
+        }
+        guard.as_mut().unwrap().sample()
+    };
     let cfg = config.unwrap_or_else(advisor::AdvisorConfig::load);
     let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
     *state.chat_cancel.lock().unwrap() = Some(cancel.clone());

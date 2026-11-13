@@ -121,6 +121,13 @@ fn claude_code(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &Ato
         .spawn()
         .map_err(|e| anyhow::anyhow!("could not start `claude` (is Claude Code installed?): {e}"))?;
     child.stdin.take().unwrap().write_all(prompt.as_bytes())?;
+    // Drain stderr concurrently: a full pipe would block `claude` mid-reply.
+    let mut errpipe = child.stderr.take().unwrap();
+    let stderr = std::thread::spawn(move || {
+        let mut s = String::new();
+        let _ = std::io::Read::read_to_string(&mut errpipe, &mut s);
+        s
+    });
     let mut text = String::new();
     let mut result = None;
     for line in BufReader::new(child.stdout.take().unwrap()).lines() {
@@ -152,13 +159,7 @@ fn claude_code(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &Ato
     }
     match result {
         Some(Err(e)) => anyhow::bail!("claude -p: {e}"),
-        None if !status.success() => {
-            let mut err = String::new();
-            if let Some(mut e) = child.stderr.take() {
-                let _ = std::io::Read::read_to_string(&mut e, &mut err);
-            }
-            anyhow::bail!("claude -p failed: {}", err.trim())
-        }
+        None if !status.success() => anyhow::bail!("claude -p failed: {}", stderr.join().unwrap_or_default().trim()),
         _ => Ok(text),
     }
 }
