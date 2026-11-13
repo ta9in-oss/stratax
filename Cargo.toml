@@ -6,6 +6,12 @@ members = ["crates/stratax-core", "crates/stratax-cli", "crates/stratax-desktop"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+authors = ["Mohammed Essaid MEZERREG"]
+repository = "https://github.com/ta9in-oss/stratax"
+homepage = "https://github.com/ta9in-oss/stratax"
+readme = "README.md"
+keywords = ["disk", "tui", "ai-agents", "cleanup", "tauri"]
+categories = ["command-line-utilities", "filesystem"]
 
 [workspace.dependencies]
 anyhow = "1"

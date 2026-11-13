@@ -1,5 +1,16 @@
 # Stratax
 
+<p>
+  <a href="https://github.com/ta9in-oss/stratax/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ta9in-oss/stratax/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="Rust" src="https://img.shields.io/badge/rust-2021-orange?logo=rust">
+  <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white">
+  <img alt="ratatui" src="https://img.shields.io/badge/TUI-ratatui-8A2BE2">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20(degraded)-lightgrey">
+  <img alt="i18n" src="https://img.shields.io/badge/i18n-English%20%7C%20%D8%A7%D9%84%D8%B9%D8%B1%D8%A8%D9%8A%D8%A9%20(RTL)-success">
+  <a href="https://github.com/ta9in-oss/stratax/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/ta9in-oss/stratax"></a>
+</p>
+
 Disk and resource analyzer for machines where **many AI coding agents work on many projects at once**.
 It knows where Claude Code, Codex and Cursor leave data, what mutation testers (cargo-mutants, Stryker,
 mutmut) copy into temp dirs, which build outputs regrow, and which of it is safe to reclaim **right now**
@@ -12,6 +23,25 @@ Three front ends share one Rust core:
 | `stratax` | TUI (default) — overview, findings, agents, resources, explorer, advisor |
 | `stratax scan/status/advise/clean --json` | non-interactive, for scripts **and for agents** |
 | `stratax-desktop` | Tauri 2 app, English + Arabic (RTL) |
+
+<p align="center"><img src="docs/screenshots/overview-en.png" alt="Stratax overview: disks, trend and reclaimable space" width="900"></p>
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/findings-en.png" alt="Findings with safe / rebuild / review labels"></td>
+    <td><img src="docs/screenshots/agents-en.png" alt="Live AI agents and what they protect"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/advisor-en.png" alt="Advisor chat with streaming replies"></td>
+    <td><img src="docs/screenshots/resources-en.png" alt="CPU, memory and processes"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/explorer-en.png" alt="Treemap explorer"></td>
+    <td><img src="docs/screenshots/overview-ar.png" alt="Arabic, right-to-left"></td>
+  </tr>
+</table>
+
+<sub>Screenshots use synthetic sample data from an invented machine.</sub>
 
 ## What it finds
 
@@ -105,3 +135,7 @@ original aside, links, and only then deletes. An interruption leaves either the 
 
 Linux is fully supported. Everything OS-specific sits behind `platform::Platform`. Other systems fall back
 to a `sysinfo`-based backend, which is degraded: no fd guards and no unmounted-disk detection.
+
+## License
+
+[MIT](LICENSE)
