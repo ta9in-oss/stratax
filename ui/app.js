@@ -84,6 +84,7 @@ export function go(view, opts = {}) {
   if (!VIEWS[view]) view = 'overview';
   if (location.hash !== '#' + view) history.replaceState(null, '', '#' + view);
   if (current && current.unmount) current.unmount();
+  if (view !== S.view) closeSheet(); // a sheet belongs to the view that opened it
   S.view = view; current = VIEWS[view];
   if (opts.then) S.pending = opts.then;
   renderAll(true);

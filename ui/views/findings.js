@@ -1,6 +1,6 @@
 import { S, go, touchSelection } from '../app.js';
 import { t, fmtDate, fmtAge, fmtInt } from '../i18n.js';
-import { icon, esc, B, L, tilde, midTrunc, safetyBadge, ownerChip, catColor, idleText, isFsPath, toolOf, codeLine, CATS, selectionBytes } from '../ui.js';
+import { icon, esc, B, L, tilde, midTrunc, safetyBadge, ownerChip, catColor, idleText, isFsPath, toolOf, codeLine, CATS, selectionBytes, fitMenus } from '../ui.js';
 import { openExplorerAt } from './explorer.js';
 
 const F = { q: '', cats: new Set(), owners: new Set(), safety: new Set(), sort: 'size', open: new Set(), expanded: new Set(), limit: {}, menu: null, init: false };
@@ -158,7 +158,7 @@ function paint() {
   if (b) b.innerHTML = barHtml(r);
 }
 function applyIndeterminate(root) { root.querySelectorAll('[data-ind="1"]').forEach((c) => { c.indeterminate = true; }); }
-function full() { const v = document.getElementById('view'); view.render(v); }
+function full() { const v = document.getElementById('view'); view.render(v); fitMenus(v); }
 
 const view = {
   title: () => t('fd.title'),

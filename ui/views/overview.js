@@ -74,7 +74,7 @@ function diskCard(d, r) {
   }
   const p = d.used + d.available ? d.used / (d.used + d.available) : 0;
   return `<div class="panel disk fade-in">
-    <div class="disk-h">${icon(d.rotational ? 'hdd' : 'ssd')}<div><div class="disk-name">${L(name)}</div><div class="disk-meta">${L(d.mount)} · ${L(d.fs)}</div></div><span class="disk-size">${B(d.total)}</span></div>
+    <div class="disk-h">${icon(d.rotational ? 'hdd' : 'ssd')}<div><div class="disk-name">${L(name)}</div><div class="disk-meta" title="${esc(d.mount)} · ${esc(d.fs || '')}">${L(d.mount)} · ${L(d.fs)}</div></div><span class="disk-size">${B(d.total)}</span></div>
     <div class="meter ${p > 0.88 ? 'hot' : p > 0.75 ? 'warm' : ''}"><i style="inline-size:${(p * 100).toFixed(1)}%"></i></div>
     <div class="disk-foot"><span>${esc(t('disk.free', { free: fmtBytes(d.available) }))}</span><span class="num">${esc(fmtPct(p))}</span></div>
   </div>`;

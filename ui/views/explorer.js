@@ -105,14 +105,16 @@ function layout() {
   const cells = squarify(items, width, height);
   const base = pathOf(X.stack.length - 1);
   box.innerHTML = cells.map((c) => {
-    const big = c.w > 64 && c.h > 36;
+    // Name + size need ~46px; name alone ~26px. Smaller cells keep only the tooltip.
+    const big = c.w > 64 && c.h >= 46;
+    const mid = !big && c.w > 52 && c.h >= 26;
     const st = `left:${c.x.toFixed(1)}px;top:${c.y.toFixed(1)}px;width:${c.w.toFixed(1)}px;height:${c.h.toFixed(1)}px`;
     if (c.other) return `<div class="tcell other" style="${st}" title="${esc(t('ex.other'))} · ${esc(fmtBytes(c.v))}">${big ? `<div class="tc-in"><span class="tc-n" style="font-family:var(--font)">${esc(t('ex.other'))}</span><span class="tc-b">${esc(fmtBytes(c.v))}</span></div>` : ''}</div>`;
     const p = base.replace(/\/$/, '') + '/' + c.node.name;
     const f = tintFor(p, c.v);
     const leaf = !c.node.children.length;
     return `<button class="tcell ${f ? 'tinted' : ''} ${leaf ? 'leaf' : ''}" style="${st};${f ? `--tone:${catColor(f.cat)};--mix:${Math.round(9 + f.frac * 15)}%` : ''}" ${leaf ? 'tabindex="-1"' : `data-act="ex-drill" data-i="${c.i}"`} title="${esc(p)} · ${esc(fmtBytes(c.v))}${f ? ' · ' + esc(t('cat.' + f.cat)) : ''}">
-      ${big ? `<span class="tc-in"><span class="tc-n">${esc(c.node.name)}</span><span class="tc-b">${esc(fmtBytes(c.v))}</span></span>` : ''}</button>`;
+      ${big ? `<span class="tc-in"><span class="tc-n">${esc(c.node.name)}</span><span class="tc-b">${esc(fmtBytes(c.v))}</span></span>` : mid ? `<span class="tc-in"><span class="tc-n">${esc(c.node.name)}</span></span>` : ''}</button>`;
   }).join('');
 }
 

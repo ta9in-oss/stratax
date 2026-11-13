@@ -74,3 +74,15 @@ export function selectionBytes(list) {
     .filter((f) => !fs.some((o) => o.id !== f.id && f.path !== o.path && String(f.path).startsWith(o.path + '/')))
     .reduce((s, f) => s + f.bytes, 0);
 }
+
+/** Keep open dropdown menus inside the window: cap their height to the room
+ *  below the trigger, or open upwards when there is more room above. */
+export function fitMenus(root = document) {
+  for (const m of root.querySelectorAll('.menu')) {
+    const r = (m.parentElement || m).getBoundingClientRect();
+    const below = innerHeight - r.bottom - 22, above = r.top - 22;
+    const up = below < 220 && above > below;
+    m.classList.toggle('up', up);
+    m.style.setProperty('--menu-room', Math.max(120, up ? above : below) + 'px');
+  }
+}

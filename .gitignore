@@ -1,4 +1,5 @@
 /target
 node_modules/
 dist/
-/.devlibs
+
+crates/stratax-desktop/gen/
