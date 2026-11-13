@@ -192,7 +192,7 @@ async function send(text) {
   let pending = false;
   const paint = () => {
     if (pending) return; pending = true;
-    requestAnimationFrame(() => { pending = false; const el = document.querySelector(`.msg.bot[data-i="${V.thread.indexOf(reply)}"] .md`); if (el) { el.innerHTML = md(reply.content, refChip) + '<span class="caret"></span>'; const th = document.getElementById('adv-thread'); if (th && th.scrollHeight - th.scrollTop - th.clientHeight < 140) th.scrollTop = th.scrollHeight; } });
+    requestAnimationFrame(() => { pending = false; if (!reply.streaming) return; /* final render already done */ const el = document.querySelector(`.msg.bot[data-i="${V.thread.indexOf(reply)}"] .md`); if (el) { el.innerHTML = md(reply.content, refChip) + '<span class="caret"></span>'; const th = document.getElementById('adv-thread'); if (th && th.scrollHeight - th.scrollTop - th.clientHeight < 140) th.scrollTop = th.scrollHeight; } });
   };
   try {
     const finalText = await api.chat(transcript(), toConfig(), (chunk) => { reply.content += chunk; paint(); });

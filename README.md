@@ -97,8 +97,9 @@ growth and "days until full"), `operations.log`.
 dangling symlink after a reboot. The move copies to `<dest>.partial`, renames it into place, swaps the
 original aside, links, and only then deletes. An interruption leaves either the original or a complete copy.
 
-`ui/mock/*.json` hold sample data captured from a real machine (paths included). Replace them before
-publishing the repository.
+`ui/mock/*.json` hold synthetic sample data for the browser preview and the screenshots in
+`docs/screenshots/`: an invented machine (`devbox`, user `dev`, made-up projects). Regenerate them with
+`python3 scripts/gen_mock.py`.
 
 ## Platforms
 

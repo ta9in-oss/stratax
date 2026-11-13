@@ -1,0 +1,60 @@
+{
+ "provider": "offline rules",
+ "summary": "/ is 90% full and filling at about 7.6 GB a day, mostly from Rust builds that mutation tests keep re-running.",
+ "recommendations": [
+  {
+   "id": "ff44ade6b0389",
+   "priority": 1,
+   "verdict": "reclaim",
+   "rationale": "Largest single item, idle for 12 days and no agent works there. `cargo clean` frees it; the cost is one rebuild."
+  },
+  {
+   "id": "fd6866185d600",
+   "priority": 1,
+   "verdict": "reclaim",
+   "rationale": "BuildKit cache from agents' `docker build` runs. `docker builder prune -af` has no data risk."
+  },
+  {
+   "id": "f7adbae72a427",
+   "priority": 1,
+   "verdict": "reclaim",
+   "rationale": "Left behind by a killed cargo-mutants run; nothing references it."
+  },
+  {
+   "id": "fed05d3589c38",
+   "priority": 2,
+   "verdict": "reclaim",
+   "rationale": "Scratchpad of a Claude Code session that ended 9 days ago."
+  },
+  {
+   "id": "f80725793bd7a",
+   "priority": 2,
+   "verdict": "reclaim",
+   "rationale": "Re-downloaded on demand. Quit Claude desktop first."
+  },
+  {
+   "id": "fa521deacdea4",
+   "priority": 2,
+   "verdict": "reclaim",
+   "rationale": "Pure package cache; `uv cache prune` keeps what installed venvs still use."
+  },
+  {
+   "id": "fb84038be46d4",
+   "priority": 3,
+   "verdict": "review",
+   "rationale": "May hold databases from old compose stacks. List them with `docker volume ls -f dangling=true` before pruning."
+  },
+  {
+   "id": "f9086eaa6c956",
+   "priority": 3,
+   "verdict": "relocate",
+   "rationale": "Model weights you probably want to keep: move them to the archive HDD once it is mounted."
+  }
+ ],
+ "prevention": [
+  "Run mutation tests with a throwaway target dir: `CARGO_TARGET_DIR=/tmp/mutants-target CARGO_INCREMENTAL=0 cargo mutants`, then delete it.",
+  "Wipe stale build output weekly: `stratax clean --preselected` from cron or a systemd timer.",
+  "Cap Docker's build cache with `builder.gc` and `defaultKeepStorage: \"20GB\"` in /etc/docker/daemon.json.",
+  "Mount the archive HDD at boot (add it to /etc/fstab) and move model caches and old projects onto it."
+ ]
+}

@@ -29,9 +29,26 @@ async function load(name) {
   if (!mock.cache[name]) {
     const res = await fetch(`./mock/${name}.json`);
     if (!res.ok) throw new Error(`mock ${name}: ${res.status}`);
-    mock.cache[name] = await res.json();
+    mock.cache[name] = shiftTimes(await res.json());
   }
   return structuredClone(mock.cache[name]);
+}
+
+// The sample data (scripts/gen_mock.py) is stamped at a fixed instant; move
+// every timestamp so that instant becomes "now" and ages read naturally.
+const MOCK_NOW = 1800000000;
+function shiftTimes(v) {
+  const d = Math.floor(Date.now() / 1000) - MOCK_NOW;
+  const walk = (x) => {
+    if (Array.isArray(x)) { x.forEach(walk); return; }
+    if (!x || typeof x !== 'object') return;
+    for (const k of Object.keys(x)) {
+      if (['at', 'generated_at', 'last_activity', 'since'].includes(k) && typeof x[k] === 'number') x[k] += d;
+      else walk(x[k]);
+    }
+  };
+  walk(v);
+  return v;
 }
 
 async function mockReport() {

@@ -1,0 +1,1698 @@
+{
+ "generated_at": 1800000000,
+ "host": "devbox",
+ "duration_ms": 38412,
+ "disks": [
+  {
+   "name": "nvme0n1p2",
+   "device": "/dev/nvme0n1p2",
+   "label": "system",
+   "fs": "ext4",
+   "mount": "/",
+   "total": 1052266987520,
+   "used": 930934161408,
+   "available": 111669149696,
+   "rotational": false,
+   "removable": false,
+   "uuid": "00000000-0000-4000-8000-000000000001",
+   "in_fstab": true
+  },
+  {
+   "name": "nvme0n1p1",
+   "device": "/dev/nvme0n1p1",
+   "label": "EFI",
+   "fs": "vfat",
+   "mount": "/boot/efi",
+   "total": 1073741824,
+   "used": 65011712,
+   "available": 1008730112,
+   "rotational": false,
+   "removable": false,
+   "uuid": "0000-0001",
+   "in_fstab": true
+  },
+  {
+   "name": "sda1",
+   "device": "/dev/sda1",
+   "label": "archive",
+   "fs": "ext4",
+   "mount": null,
+   "total": 2000381018112,
+   "used": 0,
+   "available": 0,
+   "rotational": true,
+   "removable": false,
+   "uuid": "00000000-0000-4000-8000-000000000002",
+   "in_fstab": false
+  }
+ ],
+ "findings": [
+  {
+   "id": "ff44ade6b0389",
+   "rule": "rust.target",
+   "title": "Rust target/ · ~/code/atlas-api",
+   "path": "/home/dev/code/atlas-api/target",
+   "category": "build_artifact",
+   "owner": "rust",
+   "safety": "rebuild",
+   "bytes": 41231686041,
+   "files": 223697,
+   "last_activity": 1798963200,
+   "reason": "Cargo build output. Mutation tests and parallel agents rebuild here constantly, so incremental/ and stale profile dirs balloon. incremental/ alone is 8.7 GB.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/atlas-api/target"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f5a15baf2a669",
+   "rule": "rust.target",
+   "title": "Rust target/ · ~/code/harbor",
+   "path": "/home/dev/code/harbor/target",
+   "category": "build_artifact",
+   "owner": "rust",
+   "safety": "rebuild",
+   "bytes": 23300197580,
+   "files": 126412,
+   "last_activity": 1799827200,
+   "reason": "Cargo build output. Mutation tests and parallel agents rebuild here constantly, so incremental/ and stale profile dirs balloon. incremental/ alone is 4.1 GB.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/harbor/target"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f034e07f81eb0",
+   "rule": "rust.target",
+   "title": "Rust target/ · ~/code/quill-engine",
+   "path": "/home/dev/code/quill-engine/target",
+   "category": "build_artifact",
+   "owner": "rust",
+   "safety": "rebuild",
+   "bytes": 17394617548,
+   "files": 94372,
+   "last_activity": 1799998272,
+   "reason": "Cargo build output. Mutation tests and parallel agents rebuild here constantly, so incremental/ and stale profile dirs balloon. incremental/ alone is 3.0 GB.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/quill-engine/target"
+    ]
+   },
+   "relocate_to": null,
+   "protected": "in use by cargo (pid 48213)",
+   "preselected": false
+  },
+  {
+   "id": "ff9654867f9f3",
+   "rule": "cache.pnpm-store",
+   "title": "pnpm store",
+   "path": "/home/dev/.local/share/pnpm/store",
+   "category": "package_cache",
+   "owner": "node",
+   "safety": "rebuild",
+   "bytes": 15247133900,
+   "files": 82721,
+   "last_activity": 1799913600,
+   "reason": "Content-addressed store hardlinked into every node_modules. Prune removes packages no project references.",
+   "action": {
+    "kind": "run_tool",
+    "program": "pnpm",
+    "args": [
+     "store",
+     "prune"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f56438d58d819",
+   "rule": "docker.images",
+   "title": "Docker images (31.0 GB total)",
+   "path": "docker://images",
+   "category": "container",
+   "owner": "docker",
+   "safety": "rebuild",
+   "bytes": 14600000000,
+   "files": 225,
+   "last_activity": null,
+   "reason": "Images not used by any container; pulled again on demand.",
+   "action": {
+    "kind": "run_tool",
+    "program": "docker",
+    "args": [
+     "image",
+     "prune",
+     "-a",
+     "-f"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f031d4b5d362e",
+   "rule": "browser.chrome-profile",
+   "title": "Chrome profiles",
+   "path": "/home/dev/.config/google-chrome",
+   "category": "browser_data",
+   "owner": "chrome",
+   "safety": "review",
+   "bytes": 13743895347,
+   "files": 74566,
+   "last_activity": 1799999136,
+   "reason": "Profile data (history, extensions, IndexedDB, service workers). Not cache — clean from inside Chrome.",
+   "action": {
+    "kind": "review_only"
+   },
+   "relocate_to": null,
+   "protected": "in use by chrome (pid 3120)",
+   "preselected": false
+  },
+  {
+   "id": "f80725793bd7a",
+   "rule": "claude-desktop.vm",
+   "title": "Claude desktop VM bundles",
+   "path": "/home/dev/.config/Claude/vm_bundles",
+   "category": "agent_data",
+   "owner": "claude-desktop",
+   "safety": "rebuild",
+   "bytes": 12455405158,
+   "files": 67575,
+   "last_activity": 1797753600,
+   "reason": "Sandbox VM images for Claude desktop's computer/code environment. Re-downloaded on demand.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/.config/Claude/vm_bundles"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "fd6866185d600",
+   "rule": "docker.build-cache",
+   "title": "Docker build cache (18.4 GB total)",
+   "path": "docker://build-cache",
+   "category": "container",
+   "owner": "docker",
+   "safety": "safe",
+   "bytes": 11900000000,
+   "files": 38,
+   "last_activity": null,
+   "reason": "BuildKit layer cache; agents running `docker build` grow this fast.",
+   "action": {
+    "kind": "run_tool",
+    "program": "docker",
+    "args": [
+     "builder",
+     "prune",
+     "-a",
+     "-f"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f31dced63bbf3",
+   "rule": "rust.target",
+   "title": "Rust target/ · ~/code/ledgerline",
+   "path": "/home/dev/code/ledgerline/target",
+   "category": "build_artifact",
+   "owner": "rust",
+   "safety": "rebuild",
+   "bytes": 10307921510,
+   "files": 55925,
+   "last_activity": 1796457600,
+   "reason": "Cargo build output. Mutation tests and parallel agents rebuild here constantly, so incremental/ and stale profile dirs balloon. incremental/ alone is 2.3 GB.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/ledgerline/target"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f9086eaa6c956",
+   "rule": "models.hf",
+   "title": "Hugging Face cache",
+   "path": "/home/dev/.cache/huggingface",
+   "category": "models",
+   "owner": "ml",
+   "safety": "review",
+   "bytes": 9985798963,
+   "files": 54177,
+   "last_activity": 1796198400,
+   "reason": "Model weights and datasets.",
+   "action": {
+    "kind": "review_only"
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "fa521deacdea4",
+   "rule": "cache.uv",
+   "title": "uv cache",
+   "path": "/home/dev/.cache/uv",
+   "category": "package_cache",
+   "owner": "python",
+   "safety": "safe",
+   "bytes": 9556302233,
+   "files": 51847,
+   "last_activity": 1799827200,
+   "reason": "uv package cache.",
+   "action": {
+    "kind": "run_tool",
+    "program": "uv",
+    "args": [
+     "cache",
+     "prune"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f08f163b0ccef",
+   "rule": "rust.incremental",
+   "title": "Rust incremental cache · ~/code/atlas-api",
+   "path": "/home/dev/code/atlas-api/target/*/incremental",
+   "category": "build_artifact",
+   "owner": "rust",
+   "safety": "safe",
+   "bytes": 9291007412,
+   "files": 50407,
+   "last_activity": 1798963200,
+   "reason": "Incremental-compilation cache only: deleting it never breaks a build, the next one is just slower.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/atlas-api/target/debug/incremental"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "fb84038be46d4",
+   "rule": "docker.volumes",
+   "title": "Docker local volumes (12.5 GB total)",
+   "path": "docker://local-volumes",
+   "category": "container",
+   "owner": "docker",
+   "safety": "review",
+   "bytes": 9200000000,
+   "files": 297,
+   "last_activity": null,
+   "reason": "Volumes no container references — may hold databases from old dev stacks. The action prunes anonymous volumes only; `docker volume prune -a` also removes named ones, check them first.",
+   "action": {
+    "kind": "run_tool",
+    "program": "docker",
+    "args": [
+     "volume",
+     "prune",
+     "-f"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f7adbae72a427",
+   "rule": "mutants.tmp",
+   "title": "cargo-mutants temp · cargo-mutants-atlas-api-x7Qk.tmp",
+   "path": "/tmp/cargo-mutants-atlas-api-x7Qk.tmp",
+   "category": "mutation_test",
+   "owner": "cargo-mutants",
+   "safety": "safe",
+   "bytes": 7838315315,
+   "files": 42526,
+   "last_activity": 1799654400,
+   "reason": "cargo-mutants copies the whole crate (and builds a full target/) per job into $TMPDIR. Killed runs leave them behind.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/tmp/cargo-mutants-atlas-api-x7Qk.tmp"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f15c52e02e8a3",
+   "rule": "python.venv",
+   "title": "Python venv · ~/code/ml-notebooks",
+   "path": "/home/dev/code/ml-notebooks/.venv",
+   "category": "build_artifact",
+   "owner": "python",
+   "safety": "rebuild",
+   "bytes": 7301444403,
+   "files": 39613,
+   "last_activity": 1797408000,
+   "reason": "Virtualenv; recreate with `uv sync`.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/ml-notebooks/.venv"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "fed05d3589c38",
+   "rule": "claude.tmp-sessions",
+   "title": "Claude session 3b9e1c42 · atlas-api",
+   "path": "/tmp/claude-1000/-home-dev-code-atlas-api/3b9e1c42-0000-4000-8000-000000000000",
+   "category": "agent_session",
+   "owner": "claude-code",
+   "safety": "safe",
+   "bytes": 7301444403,
+   "files": 39613,
+   "last_activity": 1799222400,
+   "reason": "Per-session scratchpads and background-task output. Agents download, build and log here; nothing cleans it once a session ends.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/tmp/claude-1000/-home-dev-code-atlas-api/3b9e1c42-0000-4000-8000-000000000000"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f62202fc44b80",
+   "rule": "browser.chrome-cache",
+   "title": "Chrome cache",
+   "path": "/home/dev/.cache/google-chrome",
+   "category": "browser_data",
+   "owner": "chrome",
+   "safety": "safe",
+   "bytes": 6871947673,
+   "files": 37283,
+   "last_activity": 1799999136,
+   "reason": "HTTP/media cache.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/.cache/google-chrome"
+    ]
+   },
+   "relocate_to": null,
+   "protected": "in use by chrome (pid 3120)",
+   "preselected": false
+  },
+  {
+   "id": "f4167bc8f6bb9",
+   "rule": "cache.pip",
+   "title": "pip cache",
+   "path": "/home/dev/.cache/pip",
+   "category": "package_cache",
+   "owner": "python",
+   "safety": "safe",
+   "bytes": 5476083302,
+   "files": 29710,
+   "last_activity": 1798444800,
+   "reason": "Wheel/http cache.",
+   "action": {
+    "kind": "run_tool",
+    "program": "pip",
+    "args": [
+     "cache",
+     "purge"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "fe055a990e1fa",
+   "rule": "cache.yarn",
+   "title": "Yarn cache",
+   "path": "/home/dev/.cache/yarn",
+   "category": "package_cache",
+   "owner": "node",
+   "safety": "safe",
+   "bytes": 4939212390,
+   "files": 26797,
+   "last_activity": 1794470400,
+   "reason": "Yarn v1 tarball cache.",
+   "action": {
+    "kind": "run_tool",
+    "program": "yarn",
+    "args": [
+     "cache",
+     "clean"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f55ec84332cf5",
+   "rule": "rust.target",
+   "title": "Rust target/ · ~/code/tinyfs",
+   "path": "/home/dev/code/tinyfs/target",
+   "category": "build_artifact",
+   "owner": "rust",
+   "safety": "rebuild",
+   "bytes": 4724464025,
+   "files": 25632,
+   "last_activity": 1786176000,
+   "reason": "Cargo build output. Mutation tests and parallel agents rebuild here constantly, so incremental/ and stale profile dirs balloon. incremental/ alone is 0.8 GB.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/tinyfs/target"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "fb242349f802b",
+   "rule": "rust.incremental",
+   "title": "Rust incremental cache · ~/code/harbor",
+   "path": "/home/dev/code/harbor/target/*/incremental",
+   "category": "build_artifact",
+   "owner": "rust",
+   "safety": "safe",
+   "bytes": 4430324735,
+   "files": 24037,
+   "last_activity": 1799827200,
+   "reason": "Incremental-compilation cache only: deleting it never breaks a build, the next one is just slower.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/harbor/target/debug/incremental"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "fed07d641b765",
+   "rule": "cache.generic",
+   "title": "~/.cache/embeddings-cache",
+   "path": "/home/dev/.cache/embeddings-cache",
+   "category": "app_cache",
+   "owner": null,
+   "safety": "rebuild",
+   "bytes": 4402341478,
+   "files": 23885,
+   "last_activity": 1798272000,
+   "reason": "XDG cache directory that no specific rule knows. Apps must tolerate it disappearing, but some keep expensive-to-rebuild data here (embeddings, indexes) — check before deleting large ones.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/.cache/embeddings-cache"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "fc6a4b3de44aa",
+   "rule": "cache.cargo-registry",
+   "title": "Cargo registry",
+   "path": "/home/dev/.cargo/registry",
+   "category": "package_cache",
+   "owner": "rust",
+   "safety": "rebuild",
+   "bytes": 3865470566,
+   "files": 20972,
+   "last_activity": 1799956800,
+   "reason": "Downloaded crates (cache/ + extracted src/).",
+   "action": {
+    "kind": "review_only"
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "fb5e85f316873",
+   "rule": "trash",
+   "title": "Trash",
+   "path": "/home/dev/.local/share/Trash",
+   "category": "trash",
+   "owner": null,
+   "safety": "safe",
+   "bytes": 3650722201,
+   "files": 19807,
+   "last_activity": 1798704000,
+   "reason": "Already-deleted files still on disk.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/.local/share/Trash"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f10c4cffdb7d0",
+   "rule": "cache.npm",
+   "title": "npm cache",
+   "path": "/home/dev/.npm/_cacache",
+   "category": "package_cache",
+   "owner": "node",
+   "safety": "safe",
+   "bytes": 3435973836,
+   "files": 18642,
+   "last_activity": 1799740800,
+   "reason": "npm tarball cache.",
+   "action": {
+    "kind": "run_tool",
+    "program": "npm",
+    "args": [
+     "cache",
+     "clean",
+     "--force"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f6f7451da6d45",
+   "rule": "agent.worktrees",
+   "title": "Agent worktrees · ~/code/atlas-api",
+   "path": "/home/dev/code/atlas-api/.claude/worktrees",
+   "category": "worktree",
+   "owner": "claude-code",
+   "safety": "review",
+   "bytes": 3328599654,
+   "files": 18059,
+   "last_activity": 1799395200,
+   "reason": "Git worktrees an agent created for parallel tasks.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/atlas-api/.claude/worktrees"
+    ]
+   },
+   "relocate_to": null,
+   "protected": "agent-4f1c: 3 uncommitted/untracked change(s)",
+   "preselected": false
+  },
+  {
+   "id": "f7d74843c03b7",
+   "rule": "rust.incremental",
+   "title": "Rust incremental cache · ~/code/quill-engine",
+   "path": "/home/dev/code/quill-engine/target/*/incremental",
+   "category": "build_artifact",
+   "owner": "rust",
+   "safety": "safe",
+   "bytes": 3272272834,
+   "files": 17754,
+   "last_activity": 1799998272,
+   "reason": "Incremental-compilation cache only: deleting it never breaks a build, the next one is just slower.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/quill-engine/target/debug/incremental"
+    ]
+   },
+   "relocate_to": null,
+   "protected": "in use by cargo (pid 48213)",
+   "preselected": false
+  },
+  {
+   "id": "fd7704d9b153b",
+   "rule": "rust.target",
+   "title": "Rust target/ · ~/code/orbit-cli",
+   "path": "/home/dev/code/orbit-cli/target",
+   "category": "build_artifact",
+   "owner": "rust",
+   "safety": "rebuild",
+   "bytes": 3113851289,
+   "files": 16894,
+   "last_activity": 1799481600,
+   "reason": "Cargo build output. Mutation tests and parallel agents rebuild here constantly, so incremental/ and stale profile dirs balloon. incremental/ alone is 0.6 GB.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/orbit-cli/target"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f309dd707874e",
+   "rule": "models.whisper",
+   "title": "Whisper models",
+   "path": "/home/dev/.cache/whisper",
+   "category": "models",
+   "owner": "ml",
+   "safety": "review",
+   "bytes": 3113851289,
+   "files": 16894,
+   "last_activity": 1793952000,
+   "reason": "Speech model weights.",
+   "action": {
+    "kind": "review_only"
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f9271a4826e76",
+   "rule": "cache.go-build",
+   "title": "Go build cache",
+   "path": "/home/dev/.cache/go-build",
+   "category": "package_cache",
+   "owner": "go",
+   "safety": "safe",
+   "bytes": 2899102924,
+   "files": 15729,
+   "last_activity": 1799222400,
+   "reason": "Compiler output cache.",
+   "action": {
+    "kind": "run_tool",
+    "program": "go",
+    "args": [
+     "clean",
+     "-cache"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f8edbf8d860e9",
+   "rule": "flutter.build",
+   "title": "Flutter build/ · ~/code/mobile-shell",
+   "path": "/home/dev/code/mobile-shell/build",
+   "category": "build_artifact",
+   "owner": "flutter",
+   "safety": "rebuild",
+   "bytes": 2791728742,
+   "files": 15147,
+   "last_activity": 1794988800,
+   "reason": "Build output.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/mobile-shell/build"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f747fc73cef07",
+   "rule": "claude.tmp-sessions",
+   "title": "Claude session a71d04ee · harbor",
+   "path": "/tmp/claude-1000/-home-dev-code-harbor/a71d04ee-0000-4000-8000-000000000000",
+   "category": "agent_session",
+   "owner": "claude-code",
+   "safety": "safe",
+   "bytes": 2576980377,
+   "files": 13982,
+   "last_activity": 1799997408,
+   "reason": "Per-session scratchpads and background-task output. Agents download, build and log here; nothing cleans it once a session ends.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/tmp/claude-1000/-home-dev-code-harbor/a71d04ee-0000-4000-8000-000000000000"
+    ]
+   },
+   "relocate_to": null,
+   "protected": "Claude Code is running in this project and the session is recent",
+   "preselected": false
+  },
+  {
+   "id": "f8295d66ac83c",
+   "rule": "rust.incremental",
+   "title": "Rust incremental cache · ~/code/ledgerline",
+   "path": "/home/dev/code/ledgerline/target/*/incremental",
+   "category": "build_artifact",
+   "owner": "rust",
+   "safety": "safe",
+   "bytes": 2481223865,
+   "files": 13462,
+   "last_activity": 1796457600,
+   "reason": "Incremental-compilation cache only: deleting it never breaks a build, the next one is just slower.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/ledgerline/target/debug/incremental"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f265527b25591",
+   "rule": "docker.containers",
+   "title": "Docker containers (2.3 GB total)",
+   "path": "docker://containers",
+   "category": "container",
+   "owner": "docker",
+   "safety": "rebuild",
+   "bytes": 2300000000,
+   "files": 71,
+   "last_activity": null,
+   "reason": "Stopped containers and their writable layers.",
+   "action": {
+    "kind": "run_tool",
+    "program": "docker",
+    "args": [
+     "container",
+     "prune",
+     "-f"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f7fafe2bd074d",
+   "rule": "mutants.tmp",
+   "title": "cargo-mutants temp · cargo-mutants-harbor-p2Lm.tmp",
+   "path": "/tmp/cargo-mutants-harbor-p2Lm.tmp",
+   "category": "mutation_test",
+   "owner": "cargo-mutants",
+   "safety": "safe",
+   "bytes": 2254857830,
+   "files": 12234,
+   "last_activity": 1799999136,
+   "reason": "cargo-mutants copies the whole crate per job into $TMPDIR.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/tmp/cargo-mutants-harbor-p2Lm.tmp"
+    ]
+   },
+   "relocate_to": null,
+   "protected": "a cargo-mutants run is in progress",
+   "preselected": false
+  },
+  {
+   "id": "f7e3f18ea1b48",
+   "rule": "node.modules",
+   "title": "node_modules · ~/code/dash-web",
+   "path": "/home/dev/code/dash-web/node_modules",
+   "category": "build_artifact",
+   "owner": "node",
+   "safety": "rebuild",
+   "bytes": 2040109465,
+   "files": 11069,
+   "last_activity": 1799740800,
+   "reason": "Installed dependencies; `pnpm i` / `npm ci` restores them.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/dash-web/node_modules"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f4f5947e93f0f",
+   "rule": "codex.runtimes",
+   "title": "Codex runtimes",
+   "path": "/home/dev/.cache/codex-runtimes",
+   "category": "agent_data",
+   "owner": "codex",
+   "safety": "rebuild",
+   "bytes": 1932735283,
+   "files": 10486,
+   "last_activity": 1797148800,
+   "reason": "Sandboxed runtimes; re-provisioned.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/.cache/codex-runtimes"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f21a054c4acee",
+   "rule": "cursor.workspace",
+   "title": "Cursor workspace storage",
+   "path": "/home/dev/.config/Cursor/User/workspaceStorage",
+   "category": "agent_data",
+   "owner": "cursor",
+   "safety": "review",
+   "bytes": 1825361100,
+   "files": 9904,
+   "last_activity": 1799568000,
+   "reason": "Per-workspace state incl. agent chat history.",
+   "action": {
+    "kind": "review_only"
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "fa81d4f01c018",
+   "rule": "cache.generic",
+   "title": "~/.cache/jetbrains-index",
+   "path": "/home/dev/.cache/jetbrains-index",
+   "category": "app_cache",
+   "owner": null,
+   "safety": "rebuild",
+   "bytes": 1717986918,
+   "files": 9321,
+   "last_activity": 1795680000,
+   "reason": "XDG cache directory that no specific rule knows. Apps must tolerate it disappearing, but some keep expensive-to-rebuild data here (embeddings, indexes) — check before deleting large ones.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/.cache/jetbrains-index"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f25b375bbd5af",
+   "rule": "node.modules",
+   "title": "node_modules · ~/code/pricing-site",
+   "path": "/home/dev/code/pricing-site/node_modules",
+   "category": "build_artifact",
+   "owner": "node",
+   "safety": "rebuild",
+   "bytes": 1503238553,
+   "files": 8156,
+   "last_activity": 1791792000,
+   "reason": "Installed dependencies; `pnpm i` / `npm ci` restores them.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/pricing-site/node_modules"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f85f2af4c1ed5",
+   "rule": "claude.projects",
+   "title": "Claude Code transcripts",
+   "path": "/home/dev/.claude/projects",
+   "category": "agent_data",
+   "owner": "claude-code",
+   "safety": "review",
+   "bytes": 1503238553,
+   "files": 8156,
+   "last_activity": 1799999136,
+   "reason": "Conversation transcripts used by --resume and memory. Old ones can go, but they are history, not cache.",
+   "action": {
+    "kind": "review_only"
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "fac26691ea1db",
+   "rule": "tool.rustup",
+   "title": "Rust toolchain 1.82.0-x86_64-unknown-linux-gnu",
+   "path": "/home/dev/.rustup/toolchains/1.82.0-x86_64-unknown-linux-gnu",
+   "category": "toolchain",
+   "owner": "rust",
+   "safety": "rebuild",
+   "bytes": 1503238553,
+   "files": 8156,
+   "last_activity": 1792224000,
+   "reason": "Non-default toolchain. `rustup toolchain uninstall` it if no project pins it.",
+   "action": {
+    "kind": "run_tool",
+    "program": "rustup",
+    "args": [
+     "toolchain",
+     "uninstall",
+     "1.82.0-x86_64-unknown-linux-gnu"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f1731d629240e",
+   "rule": "vscode.workspace",
+   "title": "VS Code workspace storage",
+   "path": "/home/dev/.config/Code/User/workspaceStorage",
+   "category": "agent_data",
+   "owner": "vscode",
+   "safety": "review",
+   "bytes": 1395864371,
+   "files": 7574,
+   "last_activity": 1799913600,
+   "reason": "Per-workspace state incl. Copilot / Cline / Roo chat history.",
+   "action": {
+    "kind": "review_only"
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "fe9016ebe8f7c",
+   "rule": "claude.tmp-sessions",
+   "title": "Claude session 5c2f8a19 · docs-portal",
+   "path": "/tmp/claude-1000/-home-dev-code-docs-portal/5c2f8a19-0000-4000-8000-000000000000",
+   "category": "agent_session",
+   "owner": "claude-code",
+   "safety": "safe",
+   "bytes": 1288490188,
+   "files": 6991,
+   "last_activity": 1798185600,
+   "reason": "Per-session scratchpads and background-task output. Agents download, build and log here; nothing cleans it once a session ends.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/tmp/claude-1000/-home-dev-code-docs-portal/5c2f8a19-0000-4000-8000-000000000000"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f16e03dc4645b",
+   "rule": "node.modules",
+   "title": "node_modules · ~/code/docs-portal",
+   "path": "/home/dev/code/docs-portal/node_modules",
+   "category": "build_artifact",
+   "owner": "node",
+   "safety": "rebuild",
+   "bytes": 1181116006,
+   "files": 6408,
+   "last_activity": 1780128000,
+   "reason": "Installed dependencies; `pnpm i` / `npm ci` restores them.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/docs-portal/node_modules"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f024ac6ebcd06",
+   "rule": "codex.sessions",
+   "title": "Codex sessions",
+   "path": "/home/dev/.codex/sessions",
+   "category": "agent_data",
+   "owner": "codex",
+   "safety": "review",
+   "bytes": 966367641,
+   "files": 5243,
+   "last_activity": 1799827200,
+   "reason": "Codex rollout transcripts.",
+   "action": {
+    "kind": "review_only"
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "fdc527ef464ea",
+   "rule": "cache.generic",
+   "title": "~/.cache/electron-builder",
+   "path": "/home/dev/.cache/electron-builder",
+   "category": "app_cache",
+   "owner": null,
+   "safety": "rebuild",
+   "bytes": 966367641,
+   "files": 5243,
+   "last_activity": 1793088000,
+   "reason": "XDG cache directory that no specific rule knows. Apps must tolerate it disappearing, but some keep expensive-to-rebuild data here (embeddings, indexes) — check before deleting large ones.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/.cache/electron-builder"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "fcbbb05c29e9e",
+   "rule": "apt.archives",
+   "title": "APT package downloads",
+   "path": "/var/cache/apt/archives",
+   "category": "system",
+   "owner": "apt",
+   "safety": "safe",
+   "bytes": 858993459,
+   "files": 4661,
+   "last_activity": 1799481600,
+   "reason": "Downloaded .deb files.",
+   "action": {
+    "kind": "run_tool",
+    "program": "sudo",
+    "args": [
+     "apt-get",
+     "clean"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f98b906ed4ae8",
+   "rule": "terraform",
+   "title": "Terraform providers · ~/code/infra/terraform",
+   "path": "/home/dev/code/infra/terraform/.terraform",
+   "category": "build_artifact",
+   "owner": "terraform",
+   "safety": "rebuild",
+   "bytes": 751619276,
+   "files": 4078,
+   "last_activity": 1774080000,
+   "reason": "`terraform init` restores.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/infra/terraform/.terraform"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f2f4156e63b2a",
+   "rule": "cache.playwright",
+   "title": "Playwright browsers · chromium-1187",
+   "path": "/home/dev/.cache/ms-playwright/chromium-1187",
+   "category": "package_cache",
+   "owner": "node",
+   "safety": "rebuild",
+   "bytes": 644245094,
+   "files": 3496,
+   "last_activity": 1789632000,
+   "reason": "One browser build per Playwright version.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/.cache/ms-playwright/chromium-1187"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f6bb5bba447d2",
+   "rule": "snap.disabled",
+   "title": "Old snap firefox r5437",
+   "path": "/var/lib/snapd/snaps/firefox_5437.snap",
+   "category": "system",
+   "owner": "snap",
+   "safety": "safe",
+   "bytes": 616032367,
+   "files": 1,
+   "last_activity": null,
+   "reason": "Disabled snap revision kept for rollback.",
+   "action": {
+    "kind": "run_tool",
+    "program": "sudo",
+    "args": [
+     "snap",
+     "remove",
+     "firefox",
+     "--revision=5437"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f9d34aa1ac45c",
+   "rule": "next.cache",
+   "title": "Next.js build · ~/code/dash-web",
+   "path": "/home/dev/code/dash-web/.next",
+   "category": "build_artifact",
+   "owner": "node",
+   "safety": "safe",
+   "bytes": 612032839,
+   "files": 3321,
+   "last_activity": 1799740800,
+   "reason": "Next.js build + cache.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/dash-web/.next"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f758b2c4c815d",
+   "rule": "next.cache",
+   "title": "Next.js build · ~/code/pricing-site",
+   "path": "/home/dev/code/pricing-site/.next",
+   "category": "build_artifact",
+   "owner": "node",
+   "safety": "safe",
+   "bytes": 450971566,
+   "files": 2447,
+   "last_activity": 1791792000,
+   "reason": "Next.js build + cache.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/pricing-site/.next"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "fcbb1a986ddc9",
+   "rule": "snap.disabled",
+   "title": "Old snap gnome-46-2404 r145",
+   "path": "/var/lib/snapd/snaps/gnome-46-2404_145.snap",
+   "category": "system",
+   "owner": "snap",
+   "safety": "safe",
+   "bytes": 445938892,
+   "files": 1,
+   "last_activity": null,
+   "reason": "Disabled snap revision kept for rollback.",
+   "action": {
+    "kind": "run_tool",
+    "program": "sudo",
+    "args": [
+     "snap",
+     "remove",
+     "gnome-46-2404",
+     "--revision=145"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "fed50e8eecd45",
+   "rule": "snap.disabled",
+   "title": "Old snap core22 r1663",
+   "path": "/var/lib/snapd/snaps/core22_1663.snap",
+   "category": "system",
+   "owner": "snap",
+   "safety": "safe",
+   "bytes": 420368262,
+   "files": 1,
+   "last_activity": null,
+   "reason": "Disabled snap revision kept for rollback.",
+   "action": {
+    "kind": "run_tool",
+    "program": "sudo",
+    "args": [
+     "snap",
+     "remove",
+     "core22",
+     "--revision=1663"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f49ae26cb7deb",
+   "rule": "next.cache",
+   "title": "Next.js build · ~/code/docs-portal",
+   "path": "/home/dev/code/docs-portal/.next",
+   "category": "build_artifact",
+   "owner": "node",
+   "safety": "safe",
+   "bytes": 354334801,
+   "files": 1923,
+   "last_activity": 1780128000,
+   "reason": "Next.js build + cache.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/docs-portal/.next"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "ff44f7de012c1",
+   "rule": "claude.file-history",
+   "title": "Claude Code file history",
+   "path": "/home/dev/.claude/file-history",
+   "category": "agent_data",
+   "owner": "claude-code",
+   "safety": "rebuild",
+   "bytes": 322122547,
+   "files": 1748,
+   "last_activity": 1799913600,
+   "reason": "Pre-edit file snapshots used for rewind. Only matters for recent sessions.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/.claude/file-history"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f817f60ef51d1",
+   "rule": "tool.nvm",
+   "title": "Node v20.18.0",
+   "path": "/home/dev/.nvm/versions/node/v20.18.0",
+   "category": "toolchain",
+   "owner": "node",
+   "safety": "rebuild",
+   "bytes": 214748364,
+   "files": 1166,
+   "last_activity": 1787904000,
+   "reason": "Not the active nvm version.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/.nvm/versions/node/v20.18.0"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f7b959fd5bb5c",
+   "rule": "mutants.out-old",
+   "title": "cargo-mutants previous report · ~/code/atlas-api",
+   "path": "/home/dev/code/atlas-api/mutants.out.old",
+   "category": "mutation_test",
+   "owner": "cargo-mutants",
+   "safety": "safe",
+   "bytes": 15115172,
+   "files": 83,
+   "last_activity": 1798704000,
+   "reason": "Previous run, kept by rotation.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/atlas-api/mutants.out.old"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f3ddb5e841de4",
+   "rule": "mutants.out",
+   "title": "cargo-mutants report · ~/code/harbor",
+   "path": "/home/dev/code/harbor/mutants.out",
+   "category": "mutation_test",
+   "owner": "cargo-mutants",
+   "safety": "safe",
+   "bytes": 13184912,
+   "files": 72,
+   "last_activity": 1799827200,
+   "reason": "Logs + outcomes of the last mutation run.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/harbor/mutants.out"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f93109a07608f",
+   "rule": "mutants.out",
+   "title": "cargo-mutants report · ~/code/quill-engine",
+   "path": "/home/dev/code/quill-engine/mutants.out",
+   "category": "mutation_test",
+   "owner": "cargo-mutants",
+   "safety": "safe",
+   "bytes": 12707662,
+   "files": 69,
+   "last_activity": 1799998272,
+   "reason": "Logs + outcomes of the last mutation run.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/quill-engine/mutants.out"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": false
+  },
+  {
+   "id": "f21b01fa04048",
+   "rule": "mutants.out-old",
+   "title": "cargo-mutants previous report · ~/code/harbor",
+   "path": "/home/dev/code/harbor/mutants.out.old",
+   "category": "mutation_test",
+   "owner": "cargo-mutants",
+   "safety": "safe",
+   "bytes": 10329545,
+   "files": 57,
+   "last_activity": 1799568000,
+   "reason": "Previous run, kept by rotation.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/harbor/mutants.out.old"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "f7c4f92020015",
+   "rule": "mutants.out",
+   "title": "cargo-mutants report · ~/code/atlas-api",
+   "path": "/home/dev/code/atlas-api/mutants.out",
+   "category": "mutation_test",
+   "owner": "cargo-mutants",
+   "safety": "safe",
+   "bytes": 6725133,
+   "files": 37,
+   "last_activity": 1798963200,
+   "reason": "Logs + outcomes of the last mutation run.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/atlas-api/mutants.out"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  },
+  {
+   "id": "fa36f0ca2f553",
+   "rule": "mutants.out-old",
+   "title": "cargo-mutants previous report · ~/code/quill-engine",
+   "path": "/home/dev/code/quill-engine/mutants.out.old",
+   "category": "mutation_test",
+   "owner": "cargo-mutants",
+   "safety": "safe",
+   "bytes": 4823376,
+   "files": 27,
+   "last_activity": 1799739072,
+   "reason": "Previous run, kept by rotation.",
+   "action": {
+    "kind": "delete",
+    "paths": [
+     "/home/dev/code/quill-engine/mutants.out.old"
+    ]
+   },
+   "relocate_to": null,
+   "protected": null,
+   "preselected": true
+  }
+ ],
+ "totals": [
+  {
+   "category": "build_artifact",
+   "label": "Build artifacts",
+   "bytes": 117059333644,
+   "reclaimable": 99664716096,
+   "count": 15
+  },
+  {
+   "category": "package_cache",
+   "label": "Package caches",
+   "bytes": 46063524245,
+   "reclaimable": 46063524245,
+   "count": 8
+  },
+  {
+   "category": "container",
+   "label": "Containers",
+   "bytes": 38000000000,
+   "reclaimable": 28800000000,
+   "count": 4
+  },
+  {
+   "category": "browser_data",
+   "label": "Browsers",
+   "bytes": 20615843020,
+   "reclaimable": 0,
+   "count": 2
+  },
+  {
+   "category": "agent_data",
+   "label": "Agent data",
+   "bytes": 20401094653,
+   "reclaimable": 14710262988,
+   "count": 7
+  },
+  {
+   "category": "models",
+   "label": "AI models",
+   "bytes": 13099650252,
+   "reclaimable": 0,
+   "count": 2
+  },
+  {
+   "category": "agent_session",
+   "label": "Agent sessions",
+   "bytes": 11166914968,
+   "reclaimable": 8589934591,
+   "count": 3
+  },
+  {
+   "category": "mutation_test",
+   "label": "Mutation tests",
+   "bytes": 10156058945,
+   "reclaimable": 7901201115,
+   "count": 8
+  },
+  {
+   "category": "app_cache",
+   "label": "App caches",
+   "bytes": 7086696037,
+   "reclaimable": 7086696037,
+   "count": 3
+  },
+  {
+   "category": "trash",
+   "label": "Trash",
+   "bytes": 3650722201,
+   "reclaimable": 3650722201,
+   "count": 1
+  },
+  {
+   "category": "worktree",
+   "label": "Worktrees",
+   "bytes": 3328599654,
+   "reclaimable": 0,
+   "count": 1
+  },
+  {
+   "category": "system",
+   "label": "System",
+   "bytes": 2341332980,
+   "reclaimable": 2341332980,
+   "count": 4
+  },
+  {
+   "category": "toolchain",
+   "label": "Toolchains",
+   "bytes": 1717986917,
+   "reclaimable": 1717986917,
+   "count": 2
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-code",
+   "kind": "agent",
+   "processes": 3,
+   "threads": 66,
+   "cpu": 14.2,
+   "memory": 1181116006,
+   "cwds": [
+    "/home/dev/code/harbor",
+    "/home/dev/code/quill-engine",
+    "/home/dev/code/dash-web"
+   ],
+   "footprint": 16320875722
+  },
+  {
+   "agent": "cargo-mutants",
+   "kind": "workload",
+   "processes": 1,
+   "threads": 4,
+   "cpu": 2.1,
+   "memory": 18874368,
+   "cwds": [
+    "/home/dev/code/harbor"
+   ],
+   "footprint": 10156058945
+  },
+  {
+   "agent": "rust-build",
+   "kind": "workload",
+   "processes": 6,
+   "threads": 48,
+   "cpu": 512.0,
+   "memory": 3650722201,
+   "cwds": [
+    "/tmp/cargo-mutants-harbor-p2Lm.tmp",
+    "/home/dev/code/quill-engine"
+   ],
+   "footprint": 0
+  },
+  {
+   "agent": "codex",
+   "kind": "agent",
+   "processes": 1,
+   "threads": 18,
+   "cpu": 0.4,
+   "memory": 272629760,
+   "cwds": [
+    "/home/dev/code/atlas-api"
+   ],
+   "footprint": 2899102924
+  },
+  {
+   "agent": "docker",
+   "kind": "infra",
+   "processes": 2,
+   "threads": 31,
+   "cpu": 1.2,
+   "memory": 92274688,
+   "cwds": [],
+   "footprint": 38000000000
+  }
+ ],
+ "growth": {
+  "since": 1799740800,
+  "disks": [
+   {
+    "mount": "/",
+    "delta": 24696061952,
+    "per_day": 8160437862.4,
+    "days_to_full": 13.68421052631579
+   },
+   {
+    "mount": "/boot/efi",
+    "delta": 0,
+    "per_day": 0.0,
+    "days_to_full": null
+   }
+  ],
+  "movers": [
+   {
+    "path": "/tmp/cargo-mutants-atlas-api-x7Qk.tmp",
+    "delta": 7838315315,
+    "now": 7838315315
+   },
+   {
+    "path": "/home/dev/code/harbor/target",
+    "delta": 5583457484,
+    "now": 23300197580
+   }
+  ]
+ },
+ "insights": [
+  {
+   "severity": "warn",
+   "title": "/ is 90% full",
+   "detail": "104 GB free of 980 GB on /dev/nvme0n1p2 (NVMe SSD). At the current rate it is full in 13.7 days."
+  },
+  {
+   "severity": "warn",
+   "title": "HDD archive is not mounted",
+   "detail": "/dev/sda1 (1.8 TB, ext4) is sitting idle. Mount it and move bulky, rarely-read data there — Docker's data-root, model weights, screencasts, old projects — instead of deleting it and watching it come back."
+  },
+  {
+   "severity": "warn",
+   "title": "Rust build output: 93.2 GB in 6 target/ dirs",
+   "detail": "`cargo clean` in idle projects, or run mutation tests with CARGO_INCREMENTAL=0 and a dedicated CARGO_TARGET_DIR you can wipe after each run. 76.3 GB of that sits in projects that run mutation tests — every mutant triggers a rebuild, so incremental/ grows without bound."
+  },
+  {
+   "severity": "warn",
+   "title": "Docker can give back 35.4 GB",
+   "detail": "Build cache and stopped containers come from agents running `docker build` / compose. `docker builder prune -a` is always safe."
+  },
+  {
+   "severity": "info",
+   "title": "2 agent process group(s) running: claude-code, codex",
+   "detail": "Anything they hold open or use as a working directory is protected automatically."
+  },
+  {
+   "severity": "info",
+   "title": "Fastest grower: +7.3 GB",
+   "detail": "/tmp/cargo-mutants-atlas-api-x7Qk.tmp since the previous scan."
+  }
+ ],
+ "scan_status": "complete",
+ "unreadable": 0
+}
