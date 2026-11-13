@@ -50,10 +50,13 @@ const P = {
   unplug: '<path d="M9 4v4M15 4v4M7 8h10v3a5 5 0 0 1-10 0Z"/><path d="M12 16v4"/><path d="M4 4l16 16"/>',
   cpu: '<rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/><path d="M9.5 9.5h5v5h-5zM9.5 3v3.5M14.5 3v3.5M9.5 17.5V21M14.5 17.5V21M3 9.5h3.5M3 14.5h3.5M17.5 9.5H21M17.5 14.5H21"/>',
   memory: '<rect x="3.5" y="7" width="17" height="9" rx="1.5"/><path d="M7 16v2.5M11 16v2.5M15 16v2.5M7 10v3M10.5 10v3M14 10v3M17.5 10v3"/>',
+  list: '<path d="M9 6.5h10.5M9 12h10.5M9 17.5h10.5"/><path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>',
+  plus: '<path d="M12 5.5v13M5.5 12h13"/>',
+  send: '<path d="M4.5 12h9"/><path d="M4 4.5 20 12 4 19.5l2.5-7.5z"/>',
   mark: '<path d="M4 7.5h11"/><path d="M7 12h13"/><path d="M4 16.5h8"/>',
 };
 
-const DIRECTIONAL = new Set(['chevron', 'arrow', 'move']);
+const DIRECTIONAL = new Set(['chevron', 'arrow', 'move', 'send']);
 
 export function icon(name, cls = '') {
   const body = P[name] || P.info;

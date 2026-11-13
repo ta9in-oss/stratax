@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
-use stratax_core::{advisor, clean, resources::Sampler, scan, walk, Action, Report};
+use stratax_core::{advisor, chat, clean, resources::Sampler, scan, walk, Action, Report};
 use tauri::{Emitter, State};
 
 #[derive(Default)]
@@ -13,6 +13,7 @@ struct AppState {
     report: Mutex<Option<Report>>,
     sampler: Mutex<Option<Sampler>>,
     progress: Mutex<Option<Arc<walk::Progress>>>,
+    chat_cancel: Mutex<Option<Arc<std::sync::atomic::AtomicBool>>>,
 }
 
 type R<T> = Result<T, String>;
@@ -108,6 +109,39 @@ async fn advise(state: State<'_, AppState>, config: Option<advisor::AdvisorConfi
     tauri::async_runtime::spawn_blocking(move || advisor::advise(&report, &cfg)).await.map_err(err)?.map_err(err)
 }
 
+/// One conversational turn. Text streams as `advisor-chunk` events
+/// `{id, text}`; the full reply is also returned.
+#[tauri::command]
+async fn advisor_chat(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    messages: Vec<chat::ChatMsg>,
+    config: Option<advisor::AdvisorConfig>,
+) -> R<String> {
+    let report = state.report.lock().unwrap().clone().ok_or("run a scan first")?;
+    let live = state.sampler.lock().unwrap().get_or_insert_with(Sampler::new).sample();
+    let cfg = config.unwrap_or_else(advisor::AdvisorConfig::load);
+    let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    *state.chat_cancel.lock().unwrap() = Some(cancel.clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let live = chat::live_context(&live);
+        chat::chat(&report, Some(&live), &messages, &cfg, &cancel, &mut |t| {
+            let _ = app.emit("advisor-chunk", serde_json::json!({"id": id, "text": t}));
+        })
+    })
+    .await
+    .map_err(err)?
+    .map_err(err)
+}
+
+#[tauri::command]
+fn cancel_chat(state: State<'_, AppState>) {
+    if let Some(c) = state.chat_cancel.lock().unwrap().as_ref() {
+        c.store(true, Ordering::Relaxed);
+    }
+}
+
 /// `mode`: "reclaim" (the finding's own action) or "relocate".
 #[tauri::command]
 async fn clean(state: State<'_, AppState>, ids: Vec<String>, dry_run: bool, mode: Option<String>) -> R<Vec<clean::Outcome>> {
@@ -134,7 +168,7 @@ fn main() {
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             last_report, run_scan, get_tree, cancel_scan, get_resources, kill_process,
-            get_advisor_config, set_advisor_config, advise, clean
+            get_advisor_config, set_advisor_config, advise, advisor_chat, cancel_chat, clean
         ])
         .run(tauri::generate_context!())
         .expect("error while running Stratax");

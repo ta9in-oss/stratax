@@ -164,8 +164,20 @@ pub fn advise(r: &Report, cfg: &AdvisorConfig) -> anyhow::Result<Advice> {
     Ok(advice)
 }
 
-fn claude_code(ctx: &str, cfg: &AdvisorConfig) -> anyhow::Result<String> {
+/// `claude` without the user's personal setup: user-level plugins and hooks
+/// (output styles, session-start context) would otherwise leak into replies,
+/// and a project's `.claude/` would apply if Stratax were started inside one.
+/// `--bare` would do this too but also skips the login, so it can't be used.
+pub(crate) fn isolated_claude() -> Command {
+    let dir = crate::history::data_dir();
+    let _ = std::fs::create_dir_all(&dir);
     let mut cmd = Command::new("claude");
+    cmd.current_dir(dir).args(["--setting-sources", "project"]);
+    cmd
+}
+
+fn claude_code(ctx: &str, cfg: &AdvisorConfig) -> anyhow::Result<String> {
+    let mut cmd = isolated_claude();
     cmd.args(["-p", "--output-format", "json", "--no-session-persistence", "--tools", "", "--system-prompt", SYSTEM]);
     if let Some(m) = &cfg.model {
         cmd.args(["--model", m]);
@@ -198,7 +210,7 @@ fn anthropic(ctx: &str, cfg: &AdvisorConfig) -> anyhow::Result<String> {
     });
     let resp: serde_json::Value = ureq::post(&format!("{base}/v1/messages"))
         .set("x-api-key", &key)
-        .set("anthropic-version", "2023-06-01")
+        .set("anthropic-version", "2026-10-21")
         .set("anthropic-beta", "server-side-fallback-2026-07-01")
         .set("content-type", "application/json")
         .timeout(std::time::Duration::from_secs(300))
@@ -230,7 +242,7 @@ fn openai_compat(ctx: &str, cfg: &AdvisorConfig) -> anyhow::Result<String> {
     Ok(resp["choices"][0]["message"]["content"].as_str().unwrap_or_default().to_string())
 }
 
-fn http_err(e: ureq::Error) -> anyhow::Error {
+pub(crate) fn http_err(e: ureq::Error) -> anyhow::Error {
     match e {
         ureq::Error::Status(code, r) => anyhow::anyhow!("HTTP {code}: {}", r.into_string().unwrap_or_default().chars().take(400).collect::<String>()),
         other => anyhow::anyhow!("{other}"),

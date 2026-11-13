@@ -2,6 +2,7 @@
 
 pub mod advisor;
 pub mod agents;
+pub mod chat;
 pub mod clean;
 pub mod guard;
 pub mod history;

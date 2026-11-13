@@ -2,7 +2,7 @@ mod tui;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use stratax_core::{advisor, clean, human_bytes, resources::Sampler, scan, Safety};
+use stratax_core::{advisor, chat, clean, human_bytes, resources::Sampler, scan, Safety};
 
 #[derive(Parser)]
 #[command(name = "stratax", version, about = "Disk + resource analyzer that understands AI coding agents")]
@@ -45,6 +45,15 @@ enum Cmd {
         model: Option<String>,
         #[arg(long)]
         json: bool,
+    },
+    /// Talk with the advisor about this machine (streams; Ctrl-D to quit).
+    Chat {
+        #[arg(long)]
+        provider: Option<String>,
+        #[arg(long)]
+        model: Option<String>,
+        /// Ask one question and exit (otherwise an interactive session).
+        message: Option<String>,
     },
     /// Reclaim findings by id, or everything preselected.
     Clean {
@@ -142,6 +151,51 @@ fn main() -> anyhow::Result<()> {
                 println!("  • {p}");
             }
             Ok(())
+        }
+        Cmd::Chat { provider, model, message } => {
+            use std::io::{BufRead, Write};
+            if let Some(p) = provider {
+                std::env::set_var("STRATAX_PROVIDER", p);
+            }
+            if let Some(m) = model {
+                std::env::set_var("STRATAX_MODEL", m);
+            }
+            let cfg = advisor::AdvisorConfig::load();
+            let r = scan::recent_or_scan(3600, &Default::default());
+            let mut sampler = Sampler::new();
+            std::thread::sleep(std::time::Duration::from_millis(400));
+            let cancel = std::sync::atomic::AtomicBool::new(false);
+            let mut history: Vec<chat::ChatMsg> = vec![];
+            let mut ask = |q: String, history: &mut Vec<chat::ChatMsg>| -> anyhow::Result<()> {
+                history.push(chat::ChatMsg { role: "user".into(), content: q });
+                let live = chat::live_context(&sampler.sample());
+                let reply = chat::chat(&r, Some(&live), history, &cfg, &cancel, &mut |t| {
+                    print!("{t}");
+                    let _ = std::io::stdout().flush();
+                })?;
+                println!("\n");
+                history.push(chat::ChatMsg { role: "assistant".into(), content: reply });
+                Ok(())
+            };
+            if let Some(q) = message {
+                return ask(q, &mut history);
+            }
+            eprintln!("stratax chat · {:?} · scan from {} · Ctrl-D to quit\n", cfg.provider, r.host);
+            let stdin = std::io::stdin();
+            loop {
+                eprint!("› ");
+                let mut line = String::new();
+                if stdin.lock().read_line(&mut line)? == 0 {
+                    return Ok(());
+                }
+                if line.trim().is_empty() {
+                    continue;
+                }
+                if let Err(e) = ask(line.trim().to_string(), &mut history) {
+                    eprintln!("✗ {e}");
+                    history.pop();
+                }
+            }
         }
         Cmd::Clean { ids, preselected, yes } => {
             let r = scan::recent_or_scan(900, &Default::default());

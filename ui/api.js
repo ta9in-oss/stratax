@@ -153,6 +153,33 @@ export const api = {
     if (config && config.provider !== 'offline') a.provider = config.model || config.provider;
     return a;
   },
+  /** One chat turn. `onText` receives streamed chunks; resolves with the full reply. */
+  async chat(messages, config, onText) {
+    if (T) {
+      const id = Math.random().toString(36).slice(2);
+      const un = await T.event.listen('advisor-chunk', (e) => { if (e.payload.id === id) onText(e.payload.text); });
+      try { return await invoke('advisor_chat', { id, messages, config: config || null }); } finally { un(); }
+    }
+    // Mock: a plausible reply built from the real findings, streamed in pieces.
+    mock.chatCancel = false;
+    const r = await mockReport();
+    const top = r.findings.filter((f) => !f.protected).slice(0, 3);
+    const ar = document.documentElement.lang === 'ar';
+    const gb = (b) => (b / 2 ** 30).toFixed(1) + ' GB';
+    const reply = ar
+      ? `أكبر ما يمكن استرداده الآن:\n\n${top.map((f) => `- [${f.id}] — ${gb(f.bytes)}`).join('\n')}\n\nكلها تُعاد بناؤها تلقائيًا. لمنعها من العودة:\n\n\`\`\`bash\nexport CARGO_INCREMENTAL=0\n\`\`\``
+      : `The biggest things you can reclaim right now:\n\n${top.map((f) => `- [${f.id}] — **${gb(f.bytes)}**`).join('\n')}\n\nAll of them rebuild on their own. To keep them from coming back:\n\n\`\`\`bash\nexport CARGO_INCREMENTAL=0\n\`\`\``;
+    let out = '';
+    for (const piece of reply.match(/[\s\S]{1,9}/g)) {
+      if (mock.chatCancel) break;
+      await sleep(28); out += piece; onText(piece);
+    }
+    return out;
+  },
+  async cancelChat() {
+    if (T) return invoke('cancel_chat');
+    mock.chatCancel = true;
+  },
   async clean(ids, dryRun, mode) {
     if (T) return invoke('clean', { ids, dryRun, mode: mode || null });
     const r = await mockReport();

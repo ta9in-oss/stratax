@@ -86,3 +86,56 @@ export function fitMenus(root = document) {
     m.style.setProperty('--menu-room', Math.max(120, up ? above : below) + 'px');
   }
 }
+
+/** Small, safe Markdown renderer for advisor replies. Everything is escaped
+ *  first; only a known subset becomes markup. `[fXXXXXXXXXXXX]` finding ids
+ *  become chips via `ref(id)`. Paragraphs get dir="auto" so an Arabic reply
+ *  reads right-to-left even in the English UI, and vice versa. */
+export function md(src, ref = (id) => esc(id)) {
+  const inline = (s) => esc(s)
+    .replace(/``\s?(.+?)\s?``/g, (_, c) => `<code class="inl">${c.replace(/`/g, '&#96;')}</code>`)
+    .replace(/`([^`]+)`/g, (_, c) => `<code class="inl">${c}</code>`)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
+    .replace(/\[(f[0-9a-f]{12})\]/g, (_, id) => ref(id))
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_, txt, url) => `<span class="md-link" title="${url}">${txt}</span>`);
+  const lines = String(src || '').replace(/\r/g, '').split('\n');
+  const out = []; let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    const fence = /^\s*```\s*([\w+-]*)/.exec(l);
+    if (fence) {
+      const body = []; i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) body.push(lines[i++]);
+      i++;
+      const txt = body.join('\n');
+      out.push(`<div class="code multi md-code"><pre>${esc(txt)}</pre><button class="btn sm ghost" data-act="copy" data-copy="${esc(txt)}">${icon('copy')}<span>${esc(t('common.copy'))}</span></button></div>`);
+      continue;
+    }
+    if (/^\s*\|.*\|\s*$/.test(l) && /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i + 1] || '') && (lines[i + 1] || '').includes('-')) {
+      const cells = (row) => row.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      const head = cells(l); i += 2; const rows = [];
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(cells(lines[i++]));
+      out.push(`<div class="md-table"><table><thead><tr>${head.map((c) => `<th dir="auto">${inline(c)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td dir="auto">${inline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+      continue;
+    }
+    if (/^\s*([-*_─━]\s*){3,}$/.test(l)) { out.push('<hr>'); i++; continue; }
+    const h = /^(#{1,4})\s+(.*)/.exec(l);
+    if (h) { out.push(`<h4 dir="auto">${inline(h[2])}</h4>`); i++; continue; }
+    if (/^\s*([-*•]|\d+[.)])\s+/.test(l)) {
+      const ordered = /^\s*\d/.test(l); const items = [];
+      while (i < lines.length && /^\s*([-*•]|\d+[.)])\s+/.test(lines[i])) {
+        let item = lines[i++].replace(/^\s*([-*•]|\d+[.)])\s+/, '');
+        while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !/^\s*([-*•]|\d+[.)])\s+/.test(lines[i])) item += ' ' + lines[i++].trim();
+        items.push(`<li dir="auto">${inline(item)}</li>`);
+      }
+      out.push(ordered ? `<ol>${items.join('')}</ol>` : `<ul>${items.join('')}</ul>`);
+      continue;
+    }
+    if (!l.trim()) { i++; continue; }
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !/^\s*```/.test(lines[i]) && !/^#{1,4}\s/.test(lines[i]) && !/^\s*([-*•]|\d+[.)])\s+/.test(lines[i])) para.push(lines[i++]);
+    out.push(`<p dir="auto">${inline(para.join(' '))}</p>`);
+  }
+  return out.join('');
+}

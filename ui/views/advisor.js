@@ -1,7 +1,7 @@
 import { S, go, toast, touchSelection } from '../app.js';
 import { api } from '../api.js';
 import { t, fmtInt } from '../i18n.js';
-import { icon, esc, B, L, verdictBadge, rich, codeLine, safetyBadge } from '../ui.js';
+import { icon, esc, B, L, verdictBadge, rich, codeLine, safetyBadge, md } from '../ui.js';
 import { revealFindings } from './findings.js';
 
 const AGNES = { provider: 'open_ai_compat', model: 'agnes-2.5-pro-alpha', base_url: 'https://apihub.agnes-ai.com/v1', api_key_env: 'AGNES_API_KEY' };
@@ -13,7 +13,12 @@ const DEFAULTS = {
   open_ai_compat: { model: '', base_url: 'http://localhost:11434/v1', api_key_env: 'OPENAI_API_KEY' },
   offline: { model: '', base_url: '', api_key_env: '' },
 };
-const V = { loaded: false, choice: 'claude_code', form: { ...DEFAULTS.claude_code }, result: null, loading: false, error: null, started: 0, timer: null };
+const V = { loaded: false, choice: 'claude_code', form: { ...DEFAULTS.claude_code }, loading: false, started: 0, timer: null,
+  // Conversation: {role: 'user'|'assistant'|'plan', content, plan?, error?, streaming?}
+  thread: restore(), draft: '', streaming: false, showSettings: false };
+
+function restore() { try { return JSON.parse(sessionStorage.getItem('stratax.chat') || '[]').filter((m) => !m.streaming); } catch (_) { return []; } }
+function persist() { try { sessionStorage.setItem('stratax.chat', JSON.stringify(V.thread.slice(-60))); } catch (_) { /* storage unavailable */ } }
 
 function choiceOf(cfg) {
   if (!cfg) return 'claude_code';
@@ -51,8 +56,7 @@ function formHtml() {
     ${showUrl ? `<label class="field">${esc(t('adv.base_url'))}<input class="input mono" data-input="adv-field" data-f="base_url" value="${esc(V.form.base_url)}" spellcheck="false"></label>` : ''}
     ${showKey ? `<label class="field">${esc(t('adv.key_env'))}<input class="input mono" data-input="adv-field" data-f="api_key_env" value="${esc(V.form.api_key_env)}" spellcheck="false"><span class="hint">${esc(t('adv.key_hint'))}</span></label>` : ''}
     <div class="adv-actions">
-      <button class="btn primary" data-act="adv-ask" ${V.loading || !S.report ? 'disabled' : ''}>${icon('advisor')}${esc(t('adv.ask'))}</button>
-      <button class="btn ghost" data-act="adv-save">${esc(t('adv.save_default'))}</button>
+      <button class="btn ghost sm" data-act="adv-save">${esc(t('adv.save_default'))}</button>
     </div>
   </div>`;
 }
@@ -70,7 +74,8 @@ function thinkHtml() {
 }
 
 function preventItem(p) {
-  const snippets = [...p.matchAll(/`([^`]+)`/g)].map((m) => m[1]).filter((s) => s.length > 14);
+  // Only things that read like a command line get a copyable block (not config keys such as `defaultKeepStorage: "20GB"`).
+  const snippets = [...p.matchAll(/`([^`]+)`/g)].map((m) => m[1]).filter((s) => s.length > 14 && /^(sudo\s|[A-Z_][A-Z0-9_]*=|[a-z][\w.+-]*\s)/.test(s));
   return `<li><div>${rich(p)}</div>${snippets.map((s) => codeLine(s)).join('')}</li>`;
 }
 
@@ -93,31 +98,126 @@ function resultHtml(a) {
     ${a.prevention.length ? `<div class="section-t">${esc(t('adv.prevent'))}</div><ol class="prev">${a.prevention.map(preventItem).join('')}</ol>` : ''}`;
 }
 
-function rightHtml() {
-  if (V.loading) return thinkHtml();
-  if (V.error) return `<div class="err">${icon('critical')}<div><b>${esc(t('common.error'))}</b><div class="muted" style="font-family:var(--mono);font-size:12px;direction:ltr;text-align:start">${esc(V.error)}</div></div></div>`;
-  if (V.result) return resultHtml(V.result);
-  return `<div class="empty" style="padding-block-start:8px"><h3>${esc(t('adv.empty_t'))}</h3><p>${esc(t('adv.empty_b'))}</p></div>`;
+function refChip(id) {
+  const f = (S.report?.findings || []).find((x) => x.id === id);
+  if (!f) return `<code class="inl">${esc(id)}</code>`;
+  return `<button class="fref ${f.protected ? 'locked' : ''}" data-act="adv-ref" data-id="${id}" title="${esc(f.path)}">${f.protected ? icon('lock') : `<i class="sdot" style="background:var(--${f.safety})"></i>`}<bdi>${esc(f.title)}</bdi>${B(f.bytes)}</button>`;
 }
 
-async function ask() {
-  V.loading = true; V.error = null; V.started = Date.now();
-  view.render(document.getElementById('view'));
-  clearInterval(V.timer);
-  V.timer = setInterval(() => {
-    if (S.view !== 'advisor' || !V.loading) return;
-    const r = document.getElementById('adv-right');
-    if (r) r.innerHTML = thinkHtml();
-  }, 1000);
+function mentioned(text) {
+  const byId = new Map((S.report?.findings || []).map((f) => [f.id, f]));
+  return [...new Set([...String(text).matchAll(/\[(f[0-9a-f]{12})\]/g)].map((m) => m[1]))].map((id) => byId.get(id)).filter(Boolean);
+}
+
+function msgHtml(m, i) {
+  if (m.role === 'user') return `<div class="msg user"><div class="bubble" dir="auto">${esc(m.content).replace(/\n/g, '<br>')}</div></div>`;
+  if (m.role === 'plan') {
+    const body = m.loading ? thinkHtml() : m.error ? errHtml(m.error) : resultHtml(m.plan);
+    return `<div class="msg bot plan">${body}</div>`;
+  }
+  if (m.error) return `<div class="msg bot">${errHtml(m.error)}</div>`;
+  const refs = m.streaming ? [] : mentioned(m.content).filter((f) => !f.protected && f.safety !== 'review');
+  const caret = m.streaming ? '<span class="caret"></span>' : '';
+  return `<div class="msg bot" data-i="${i}"><div class="md">${m.content ? md(m.content, refChip) : ''}${caret}</div>
+    ${refs.length > 1 ? `<div class="msg-acts"><button class="btn sm" data-act="adv-select-refs" data-i="${i}">${icon('check')}${esc(t('adv.select_refs', { count: refs.length }))} ${B(refs.reduce((s, f) => s + f.bytes, 0))}</button></div>` : ''}</div>`;
+}
+
+function errHtml(e) {
+  return `<div class="err">${icon('critical')}<div><b>${esc(t('common.error'))}</b><div class="muted" style="font-family:var(--mono);font-size:12px;direction:ltr;text-align:start">${esc(e)}</div></div></div>`;
+}
+
+const SUGGEST = ['adv.q1', 'adv.q2', 'adv.q3', 'adv.q4'];
+
+function threadHtml() {
+  if (!V.thread.length) {
+    return `<div class="chat-empty"><div class="ce-mark">${icon('advisor')}</div><h3>${esc(t('adv.chat_t'))}</h3><p>${esc(t('adv.chat_b'))}</p>
+      <div class="suggest">${SUGGEST.map((k) => `<button class="chip" data-act="adv-suggest" data-k="${k}">${esc(t(k))}</button>`).join('')}
+      <button class="chip accent" data-act="adv-plan">${icon('list')}${esc(t('adv.plan'))}</button></div></div>`;
+  }
+  return V.thread.map(msgHtml).join('');
+}
+
+function chatHtml() {
+  const prov = t('adv.p_' + V.choice);
+  return `<section class="panel chat" aria-label="${esc(t('adv.title'))}">
+    <header class="chat-h">
+      <button class="chip" data-act="adv-settings" aria-expanded="${V.showSettings}">${icon('settings')}${esc(prov)}${V.form.model ? ` · ${L(V.form.model)}` : ''}</button>
+      <span class="spacer"></span>
+      <button class="btn sm ghost" data-act="adv-plan" ${V.streaming || !S.report ? 'disabled' : ''}>${icon('list')}${esc(t('adv.plan'))}</button>
+      <button class="btn sm ghost" data-act="adv-new" ${V.thread.length && !V.streaming ? '' : 'disabled'}>${icon('plus')}${esc(t('adv.new'))}</button>
+    </header>
+    <div class="thread" id="adv-thread" aria-live="polite">${threadHtml()}</div>
+    <form class="composer" data-submit="adv-send">
+      <textarea id="adv-input" rows="1" placeholder="${esc(t(S.report ? 'adv.placeholder' : 'adv.need_scan'))}" data-input="adv-draft" ${S.report ? '' : 'disabled'}>${esc(V.draft)}</textarea>
+      ${V.streaming
+        ? `<button type="button" class="btn" data-act="adv-stop">${icon('stop')}${esc(t('adv.stop'))}</button>`
+        : `<button type="submit" class="btn primary" ${S.report ? '' : 'disabled'} aria-label="${esc(t('adv.send'))}">${icon('send')}<span>${esc(t('adv.send'))}</span></button>`}
+    </form>
+    <div class="chat-foot faint">${esc(t('adv.foot'))}</div>
+  </section>`;
+}
+
+function rerenderThread(stick = true) {
+  const th = document.getElementById('adv-thread');
+  if (!th) return;
+  const near = th.scrollHeight - th.scrollTop - th.clientHeight < 80;
+  th.innerHTML = threadHtml();
+  if (stick || near) th.scrollTop = th.scrollHeight;
+}
+
+function full() { if (S.view === 'advisor') { view.render(document.getElementById('view')); const th = document.getElementById('adv-thread'); if (th) th.scrollTop = th.scrollHeight; } }
+
+/** What the model sees: user/assistant turns, with a ranked plan folded into text. */
+function transcript() {
+  const out = [];
+  for (const m of V.thread) {
+    if (m.role === 'user') out.push({ role: 'user', content: m.content });
+    else if (m.role === 'assistant' && !m.error && m.content) out.push({ role: 'assistant', content: m.content });
+    else if (m.role === 'plan' && m.plan) {
+      out.push({ role: 'user', content: 'Make a ranked cleanup plan.' });
+      out.push({ role: 'assistant', content: `${m.plan.summary}\n\n${m.plan.recommendations.map((r) => `- [${r.id}] ${r.verdict} (P${r.priority}): ${r.rationale}`).join('\n')}\n\nPrevention:\n${m.plan.prevention.map((p) => `- ${p}`).join('\n')}` });
+    }
+  }
+  // Providers need strictly alternating turns that end with the user.
+  return out.filter((m, i, a) => !(i > 0 && a[i - 1].role === m.role && m.role === 'assistant'));
+}
+
+async function send(text) {
+  text = text.trim();
+  if (!text || V.streaming || !S.report) return;
+  V.thread.push({ role: 'user', content: text });
+  const reply = { role: 'assistant', content: '', streaming: true };
+  V.thread.push(reply); V.draft = ''; V.streaming = true;
+  full();
+  let pending = false;
+  const paint = () => {
+    if (pending) return; pending = true;
+    requestAnimationFrame(() => { pending = false; const el = document.querySelector(`.msg.bot[data-i="${V.thread.indexOf(reply)}"] .md`); if (el) { el.innerHTML = md(reply.content, refChip) + '<span class="caret"></span>'; const th = document.getElementById('adv-thread'); if (th && th.scrollHeight - th.scrollTop - th.clientHeight < 140) th.scrollTop = th.scrollHeight; } });
+  };
   try {
-    V.result = await api.advise(toConfig());
+    const finalText = await api.chat(transcript(), toConfig(), (chunk) => { reply.content += chunk; paint(); });
+    if (finalText && finalText.length >= reply.content.length) reply.content = finalText;
+    if (!reply.content) reply.error = t('adv.no_reply');
   } catch (e) {
-    V.error = String(e?.message || e);
+    reply.error = String(e?.message || e);
   } finally {
-    V.loading = false; clearInterval(V.timer);
-    if (S.view === 'advisor') view.render(document.getElementById('view'));
+    reply.streaming = false; V.streaming = false; persist(); full();
+    document.getElementById('adv-input')?.focus();
   }
 }
+
+async function plan() {
+  if (V.streaming || !S.report) return;
+  const m = { role: 'plan', loading: true };
+  V.thread.push(m); V.streaming = true; V.loading = true; V.started = Date.now();
+  full();
+  clearInterval(V.timer);
+  V.timer = setInterval(() => { if (S.view === 'advisor' && m.loading) rerenderThread(false); }, 1000);
+  try { m.plan = await api.advise(toConfig()); } catch (e) { m.error = String(e?.message || e); }
+  finally { m.loading = false; V.loading = false; V.streaming = false; clearInterval(V.timer); persist(); full(); }
+}
+
+function autosize(el) { el.style.blockSize = 'auto'; el.style.blockSize = Math.min(el.scrollHeight, 200) + 'px'; }
 
 const view = {
   title: () => t('adv.title'),
@@ -125,21 +225,44 @@ const view = {
   noScanBtn: true,
   render(el) {
     if (!V.loaded) { loadConfig(); }
-    el.innerHTML = `<div class="adv-grid"><div>${formHtml()}</div><div id="adv-right">${rightHtml()}</div></div>`;
+    el.innerHTML = `<div class="adv-grid ${V.showSettings ? 'with-settings' : ''}">${V.showSettings ? `<div class="adv-side">${formHtml()}</div>` : ''}${chatHtml()}</div>`;
+    const ta = document.getElementById('adv-input');
+    if (ta) {
+      autosize(ta);
+      ta.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(ta.value); } };
+      ta.oninput = () => { V.draft = ta.value; autosize(ta); };
+    }
+    const form = el.querySelector('.composer');
+    if (form) form.onsubmit = (e) => { e.preventDefault(); send(ta.value); };
   },
   acts: {
-    'adv-choice': (el) => { V.choice = el.value; V.form = { ...DEFAULTS[V.choice] }; view.render(document.getElementById('view')); },
+    'adv-choice': (el) => { V.choice = el.value; V.form = { ...DEFAULTS[V.choice] }; full(); },
     'adv-field': (el) => { V.form[el.dataset.f] = el.value; },
-    'adv-ask': () => ask(),
+    'adv-draft': (el) => { V.draft = el.value; },
+    'adv-settings': () => { V.showSettings = !V.showSettings; full(); },
     'adv-save': async () => {
       try { await api.setAdvisorConfig(toConfig()); toast(t('common.saved')); } catch (e) { toast(String(e?.message || e), true); }
+    },
+    'adv-suggest': (el) => send(t(el.dataset.k)),
+    'adv-plan': () => plan(),
+    'adv-ask': () => plan(),
+    'adv-stop': () => api.cancelChat(),
+    'adv-new': () => { V.thread = []; persist(); full(); document.getElementById('adv-input')?.focus(); },
+    'adv-ref': (el) => { revealFindings([el.dataset.id]); go('findings'); },
+    'adv-select-refs': (el) => {
+      const ids = mentioned(V.thread[+el.dataset.i].content).filter((f) => !f.protected && f.safety !== 'review').map((f) => f.id);
+      touchSelection(); ids.forEach((id) => S.selected.add(id));
+      toast(t('adv.selected_n', { count: ids.length }));
+      revealFindings(ids); go('findings');
     },
     'adv-select': (el) => {
       const id = el.dataset.id; touchSelection(); S.selected.add(id); revealFindings([id]); go('findings');
     },
-    'adv-select-all': () => {
+    'adv-select-all': (el) => {
       const byId = new Map(S.report.findings.map((f) => [f.id, f]));
-      const ids = V.result.recommendations.filter((r) => r.verdict === 'reclaim' && byId.has(r.id) && !byId.get(r.id).protected).map((r) => r.id);
+      const planMsg = [...V.thread].reverse().find((m) => m.role === 'plan' && m.plan);
+      if (!planMsg) return;
+      const ids = planMsg.plan.recommendations.filter((r) => r.verdict === 'reclaim' && byId.has(r.id) && !byId.get(r.id).protected).map((r) => r.id);
       touchSelection(); ids.forEach((id) => S.selected.add(id));
       toast(t('adv.selected_n', { count: ids.length }));
       revealFindings(ids); go('findings');
