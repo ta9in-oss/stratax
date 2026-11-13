@@ -5,7 +5,9 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-homepage.workspace = true
+readme = "../../README.md"
+keywords = ["disk", "tui", "ai-agents", "cleanup", "mutation-testing"]
+categories = ["command-line-utilities", "filesystem"]
 description = "Disk + resource analyzer that understands AI coding agents (CLI + TUI)"
 
 [[bin]]

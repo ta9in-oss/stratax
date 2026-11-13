@@ -335,7 +335,10 @@ mod tests {
 
     #[test]
     fn nested_selection_is_counted_once() {
-        let t = tempfile::tempdir_in(platform::home().join(".cache")).unwrap();
+        // Under ~/.cache so the cleaner's allowed-roots check accepts it; CI homes may lack it.
+        let cache = platform::home().join(".cache");
+        std::fs::create_dir_all(&cache).unwrap();
+        let t = tempfile::tempdir_in(cache).unwrap();
         let target = t.path().join("target");
         std::fs::create_dir_all(target.join("debug/incremental")).unwrap();
         std::fs::write(target.join("debug/incremental/x"), vec![0u8; 32 * 1024]).unwrap();
