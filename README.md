@@ -2,6 +2,7 @@
 
 <p>
   <a href="https://github.com/ta9in-oss/stratax/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ta9in-oss/stratax/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/ta9in-oss/stratax/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/ta9in-oss/stratax?sort=semver"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <img alt="Rust" src="https://img.shields.io/badge/rust-2021-orange?logo=rust">
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white">
@@ -92,6 +93,26 @@ process snapshot, and mentioned findings become links you can select. The ranked
 inside the conversation. Chat follows the same rule as the plan: no tools, it can't run or delete anything.
 `claude -p` runs from Stratax's data folder with `--setting-sources project`, so your user plugins, hooks
 and output styles don't leak into replies.
+
+## Install
+
+Prebuilt binaries are on the [releases page](https://github.com/ta9in-oss/stratax/releases/latest):
+
+| | |
+|---|---|
+| CLI + TUI | `stratax-<version>-<target>.tar.gz` for Linux (x86_64, aarch64) and macOS (Apple Silicon, Intel) |
+| Desktop | `.deb` and `.AppImage` for Linux x86_64 |
+
+```bash
+# CLI, e.g. Linux x86_64
+curl -L https://github.com/ta9in-oss/stratax/releases/latest/download/stratax-v0.1.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
+./stratax-v0.1.0-x86_64-unknown-linux-gnu/stratax
+
+# Desktop on Debian/Ubuntu
+sudo apt install ./Stratax_0.1.0_amd64.deb
+```
+
+Each file has a `.sha256` next to it.
 
 ## Build
 

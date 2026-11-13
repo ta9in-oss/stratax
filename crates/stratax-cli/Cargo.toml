@@ -15,7 +15,7 @@ name = "stratax"
 path = "src/main.rs"
 
 [dependencies]
-stratax-core = { path = "../stratax-core" }
+stratax-core = { path = "../stratax-core", version = "0.1.0" }
 anyhow.workspace = true
 serde_json.workspace = true
 clap = { version = "4", features = ["derive"] }

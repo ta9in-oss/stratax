@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+description = "Core of Stratax: fast disk scanner, AI-agent-aware cleanup rules, live-process guards and advisor"
 
 [dependencies]
 anyhow.workspace = true
