@@ -56,6 +56,13 @@ or a download cache.
 
 `stratax advise --provider agnes`, or `STRATAX_PROVIDER` / `STRATAX_MODEL`.
 
+**Chat.** The Advisor view (and `stratax chat`, or `stratax chat "question"` for one shot) is a free
+conversation in English or Arabic. Replies stream. Each turn sees the latest scan plus a live CPU, memory and
+process snapshot, and mentioned findings become links you can select. The ranked plan is one button
+inside the conversation. Chat follows the same rule as the plan: no tools, it can't run or delete anything.
+`claude -p` runs from Stratax's data folder with `--setting-sources project`, so your user plugins, hooks
+and output styles don't leak into replies.
+
 ## Build
 
 ```bash
@@ -73,17 +80,25 @@ sudo apt install libwebkit2gtk-4.1-dev librsvg2-dev   # once
 cargo tauri build -c crates/stratax-desktop/tauri.conf.json   # or: cargo run -p stratax-desktop
 ```
 
-Without `sudo`, `.cargo/config.toml` points pkg-config at `.devlibs/` — a local shim over the WebKitGTK
-**runtime** libraries (the gtk-rs `-sys` crates only need pkg-config metadata and an unversioned `.so` to
-link). Recreate it with `scripts/devlibs.sh`; delete both once the `-dev` packages are installed.
+On a machine without `sudo`, `scripts/devlibs.sh` builds a local pkg-config shim over the WebKitGTK
+**runtime** libraries in `.devlibs/` (the gtk-rs `-sys` crates only need pkg-config metadata and an
+unversioned `.so`). To use it, set `PKG_CONFIG_PATH=$PWD/.devlibs/pkgconfig` for the build.
 
 The UI in `ui/` is plain HTML/CSS/JS. Open it in a browser without Tauri and it runs on the sample data
 in `ui/mock/`.
 
 ## Data
 
-`~/.local/share/stratax/` — `last-report.json` (UIs open instantly on it), `history.jsonl` (growth and
-"days until full"), `operations.log`.
+`~/.local/share/stratax/` — `last-report.json` (the UIs open on it; the desktop app rescans on launch
+only when it is older than 30 minutes), `history.jsonl` (30 days of per-scan disk use: the Overview trend,
+growth and "days until full"), `operations.log`.
+
+**Move to HDD** is offered only for disks listed in `/etc/fstab`, so a moved folder can't turn into a
+dangling symlink after a reboot. The move copies to `<dest>.partial`, renames it into place, swaps the
+original aside, links, and only then deletes. An interruption leaves either the original or a complete copy.
+
+`ui/mock/*.json` hold sample data captured from a real machine (paths included). Replace them before
+publishing the repository.
 
 ## Platforms
 
