@@ -18,6 +18,7 @@ libc = "0.2"
 sysinfo = "0.39"
 ureq = { version = "2.12", features = ["json"] }
 tempfile = "3"
+stratax-core = { path = "crates/stratax-core", version = "0.1.0" }
 
 [profile.release]
 lto = "thin"

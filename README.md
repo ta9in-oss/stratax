@@ -100,16 +100,16 @@ Prebuilt binaries are on the [releases page](https://github.com/ta9in-oss/strata
 
 | | |
 |---|---|
-| CLI + TUI | `stratax-<version>-<target>.tar.gz` for Linux (x86_64, aarch64) and macOS (Apple Silicon, Intel) |
+| CLI + TUI | `stratax-<target>.tar.gz` for Linux (x86_64, aarch64) and macOS (Apple Silicon, Intel) |
 | Desktop | `.deb` and `.AppImage` for Linux x86_64 |
 
 ```bash
 # CLI, e.g. Linux x86_64
-curl -L https://github.com/ta9in-oss/stratax/releases/latest/download/stratax-v0.1.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
-./stratax-v0.1.0-x86_64-unknown-linux-gnu/stratax
+curl -L https://github.com/ta9in-oss/stratax/releases/latest/download/stratax-x86_64-unknown-linux-gnu.tar.gz | tar xz
+./stratax-x86_64-unknown-linux-gnu/stratax
 
 # Desktop on Debian/Ubuntu
-sudo apt install ./Stratax_0.1.0_amd64.deb
+sudo apt install ./Stratax_<version>_amd64.deb
 ```
 
 Each file has a `.sha256` next to it.
