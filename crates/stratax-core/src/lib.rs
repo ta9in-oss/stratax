@@ -25,7 +25,9 @@ use std::sync::Arc;
 pub fn gentle_pool() -> &'static rayon::ThreadPool {
     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
     POOL.get_or_init(|| {
-        let n = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let n = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
         rayon::ThreadPoolBuilder::new()
             .num_threads((n / 2).clamp(2, 6))
             .thread_name(|i| format!("stratax-walk-{i}"))
@@ -38,5 +40,17 @@ pub fn gentle_pool() -> &'static rayon::ThreadPool {
 /// Pass 2 — full tree of one filesystem for the explorer. Minutes on a big
 /// disk; poll `progress` from another thread.
 pub fn full_tree(root: &Path, progress: Arc<walk::Progress>) -> walk::DirNode {
-    gentle_pool().install(|| walk::walk(root, walk::WalkOptions { keep_depth: 6, min_keep: 16 << 20, top_files: 12, one_filesystem: true, progress, ..Default::default() }))
+    gentle_pool().install(|| {
+        walk::walk(
+            root,
+            walk::WalkOptions {
+                keep_depth: 6,
+                min_keep: 16 << 20,
+                top_files: 12,
+                one_filesystem: true,
+                progress,
+                ..Default::default()
+            },
+        )
+    })
 }

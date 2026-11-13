@@ -25,12 +25,22 @@ pub fn execute(findings: &[Finding], dry_run: bool) -> Vec<Outcome> {
     // A finding nested in another selected one is covered by it: skip it so
     // nothing is counted (or deleted) twice.
     let covers = |outer: &Finding, inner: &Finding| {
-        outer.id != inner.id && !outer.path.starts_with("docker://") && inner.path.starts_with(&outer.path) && inner.path != outer.path
+        outer.id != inner.id
+            && !outer.path.starts_with("docker://")
+            && inner.path.starts_with(&outer.path)
+            && inner.path != outer.path
     };
     findings
         .iter()
         .map(|f| match findings.iter().find(|o| covers(o, f)) {
-            Some(o) => Outcome { id: f.id.clone(), title: f.title.clone(), ok: true, freed: 0, message: format!("included in “{}”", o.title), manual: None },
+            Some(o) => Outcome {
+                id: f.id.clone(),
+                title: f.title.clone(),
+                ok: true,
+                freed: 0,
+                message: format!("included in “{}”", o.title),
+                manual: None,
+            },
             None => run_one(f, &guard, dry_run),
         })
         .collect()
@@ -39,18 +49,36 @@ pub fn execute(findings: &[Finding], dry_run: bool) -> Vec<Outcome> {
 /// Bytes a selection would free, counting nested findings once.
 pub fn selection_bytes(sel: &[&Finding]) -> u64 {
     sel.iter()
-        .filter(|f| !sel.iter().any(|o| o.id != f.id && !o.path.starts_with("docker://") && f.path.starts_with(&o.path) && f.path != o.path))
+        .filter(|f| {
+            !sel.iter().any(|o| {
+                o.id != f.id
+                    && !o.path.starts_with("docker://")
+                    && f.path.starts_with(&o.path)
+                    && f.path != o.path
+            })
+        })
         .map(|f| f.bytes)
         .sum()
 }
 
 fn covered_path(f: &Finding) -> PathBuf {
     // `<target>/*/incremental` style paths: compare on the concrete prefix.
-    f.path.ancestors().find(|p| !p.to_string_lossy().contains('*')).unwrap_or(&f.path).to_path_buf()
+    f.path
+        .ancestors()
+        .find(|p| !p.to_string_lossy().contains('*'))
+        .unwrap_or(&f.path)
+        .to_path_buf()
 }
 
 fn run_one(f: &Finding, guard: &Guard, dry: bool) -> Outcome {
-    let mut o = Outcome { id: f.id.clone(), title: f.title.clone(), ok: false, freed: 0, message: String::new(), manual: None };
+    let mut o = Outcome {
+        id: f.id.clone(),
+        title: f.title.clone(),
+        ok: false,
+        freed: 0,
+        message: String::new(),
+        manual: None,
+    };
     if let Some(p) = &f.protected {
         o.message = format!("skipped: {p}");
         return o;
@@ -68,7 +96,11 @@ fn run_one(f: &Finding, guard: &Guard, dry: bool) -> Outcome {
             // hundreds of GB at full priority just to print a number.
             o.freed = f.bytes;
             let b = f.bytes;
-            format!("{} {}", if dry { "would free" } else { "freed" }, human_bytes(b))
+            format!(
+                "{} {}",
+                if dry { "would free" } else { "freed" },
+                human_bytes(b)
+            )
         }),
         Action::RunTool { program, args } => {
             let cmd = format!("{program} {}", args.join(" "));
@@ -86,21 +118,41 @@ fn run_one(f: &Finding, guard: &Guard, dry: bool) -> Outcome {
             }
         }
         Action::WorktreeRemove { repo } => {
-            let args = ["-C", &repo.to_string_lossy(), "worktree", "remove", &f.path.to_string_lossy()].map(str::to_string);
+            let args = [
+                "-C",
+                &repo.to_string_lossy(),
+                "worktree",
+                "remove",
+                &f.path.to_string_lossy(),
+            ]
+            .map(str::to_string);
             if dry {
                 o.freed = f.bytes;
                 Ok(format!("would run: git {}", args.join(" ")))
             } else {
-                run("git", &args).and_then(|_| run("git", &["-C".into(), repo.to_string_lossy().into(), "worktree".into(), "prune".into()])).map(|_| {
-                    o.freed = f.bytes;
-                    "worktree removed; branch kept".into()
-                })
+                run("git", &args)
+                    .and_then(|_| {
+                        run(
+                            "git",
+                            &[
+                                "-C".into(),
+                                repo.to_string_lossy().into(),
+                                "worktree".into(),
+                                "prune".into(),
+                            ],
+                        )
+                    })
+                    .map(|_| {
+                        o.freed = f.bytes;
+                        "worktree removed; branch kept".into()
+                    })
             }
         }
-        Action::Relocate { suggested_root } => relocate(&f.path, suggested_root, dry).map(|m| {
-            o.freed = f.bytes;
-            m
-        }),
+        Action::Relocate { suggested_root } => {
+            relocate(&f.path, suggested_root, dry).inspect(|_m| {
+                o.freed = f.bytes;
+            })
+        }
     };
     match res {
         Ok(m) => {
@@ -118,14 +170,35 @@ fn run_one(f: &Finding, guard: &Guard, dry: bool) -> Outcome {
 /// Only these trees may ever be deleted from, and never their roots.
 fn allowed(p: &Path) -> Result<(), String> {
     let home = platform::home();
-    let roots = [home.clone(), PathBuf::from("/tmp"), PathBuf::from("/var/tmp")];
-    if !p.is_absolute() || p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+    let roots = [
+        home.clone(),
+        PathBuf::from("/tmp"),
+        PathBuf::from("/var/tmp"),
+    ];
+    if !p.is_absolute()
+        || p.components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
         return Err(format!("refusing non-canonical path {}", p.display()));
     }
     if !roots.iter().any(|r| p.starts_with(r) && p != r) {
         return Err(format!("refusing path outside home/temp: {}", p.display()));
     }
-    let shared = [".cache", ".config", ".local", ".local/share", "workspaces", ".claude", ".codex", "Documents", "Desktop", "Downloads", "Pictures", "Videos", "Music"];
+    let shared = [
+        ".cache",
+        ".config",
+        ".local",
+        ".local/share",
+        "workspaces",
+        ".claude",
+        ".codex",
+        "Documents",
+        "Desktop",
+        "Downloads",
+        "Pictures",
+        "Videos",
+        "Music",
+    ];
     if shared.iter().any(|s| p == home.join(s)) {
         return Err(format!("refusing top-level folder {}", p.display()));
     }
@@ -143,7 +216,11 @@ fn delete(paths: &[PathBuf], dry: bool) -> Result<(), String> {
         allowed(p)?;
         if !dry {
             let meta = std::fs::symlink_metadata(p).map_err(|e| format!("{}: {e}", p.display()))?;
-            let r = if meta.is_dir() { std::fs::remove_dir_all(p) } else { std::fs::remove_file(p) };
+            let r = if meta.is_dir() {
+                std::fs::remove_dir_all(p)
+            } else {
+                std::fs::remove_file(p)
+            };
             r.map_err(|e| format!("{}: {e}", p.display()))?;
         }
     }
@@ -156,7 +233,10 @@ fn relocate(src: &Path, root: &Path, dry: bool) -> Result<String, String> {
     let rel = src.strip_prefix(&home).unwrap_or(src);
     let dest = root.join(rel.to_string_lossy().trim_start_matches('/'));
     if dry {
-        return Ok(format!("would move to {} and leave a symlink", dest.display()));
+        return Ok(format!(
+            "would move to {} and leave a symlink",
+            dest.display()
+        ));
     }
     move_with_symlink(src, &dest)?;
     Ok(format!("moved to {}", dest.display()))
@@ -177,24 +257,57 @@ pub fn move_with_symlink(src: &Path, dest: &Path) -> Result<(), String> {
     }
     let parent = dest.parent().ok_or("destination has no parent")?;
     std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    let partial = dest.with_file_name(format!("{}.partial", dest.file_name().unwrap().to_string_lossy()));
+    let partial = dest.with_file_name(format!(
+        "{}.partial",
+        dest.file_name().unwrap().to_string_lossy()
+    ));
     let _ = std::fs::remove_dir_all(&partial);
-    run("cp", &["-a".into(), "--reflink=auto".into(), src.to_string_lossy().into(), partial.to_string_lossy().into()])?;
+    run(
+        "cp",
+        &[
+            "-a".into(),
+            "--reflink=auto".into(),
+            src.to_string_lossy().into(),
+            partial.to_string_lossy().into(),
+        ],
+    )?;
     std::fs::rename(&partial, dest).map_err(|e| e.to_string())?;
-    let aside = src.with_file_name(format!("{}.stratax-old", src.file_name().unwrap().to_string_lossy()));
-    std::fs::rename(src, &aside).map_err(|e| format!("copied, but could not swap the original: {e}"))?;
+    let aside = src.with_file_name(format!(
+        "{}.stratax-old",
+        src.file_name().unwrap().to_string_lossy()
+    ));
+    std::fs::rename(src, &aside)
+        .map_err(|e| format!("copied, but could not swap the original: {e}"))?;
     if let Err(e) = std::os::unix::fs::symlink(dest, src) {
         let _ = std::fs::rename(&aside, src);
-        return Err(format!("copied, but could not create the symlink (original restored): {e}"));
+        return Err(format!(
+            "copied, but could not create the symlink (original restored): {e}"
+        ));
     }
-    let r = if meta.is_dir() { std::fs::remove_dir_all(&aside) } else { std::fs::remove_file(&aside) };
-    r.map_err(|e| format!("moved, but {} is still on the old disk: {e}", aside.display()))
+    let r = if meta.is_dir() {
+        std::fs::remove_dir_all(&aside)
+    } else {
+        std::fs::remove_file(&aside)
+    };
+    r.map_err(|e| {
+        format!(
+            "moved, but {} is still on the old disk: {e}",
+            aside.display()
+        )
+    })
 }
 
 fn run(program: &str, args: &[String]) -> Result<String, String> {
-    let out = Command::new(program).args(args).output().map_err(|e| format!("{program}: {e}"))?;
+    let out = Command::new(program)
+        .args(args)
+        .output()
+        .map_err(|e| format!("{program}: {e}"))?;
     if out.status.success() {
-        Ok(String::from_utf8_lossy(&out.stdout).lines().last().unwrap_or("").to_string())
+        Ok(String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .last()
+            .unwrap_or("")
+            .to_string())
     } else {
         Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
     }
@@ -203,8 +316,16 @@ fn run(program: &str, args: &[String]) -> Result<String, String> {
 fn log(f: &Finding, o: &Outcome) {
     let dir = crate::history::data_dir();
     let _ = std::fs::create_dir_all(&dir);
-    if let Ok(mut fh) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("operations.log")) {
-        let _ = writeln!(fh, "{}", serde_json::json!({"at": crate::resources::now(), "path": f.path, "rule": f.rule, "ok": o.ok, "freed": o.freed, "message": o.message}));
+    if let Ok(mut fh) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("operations.log"))
+    {
+        let _ = writeln!(
+            fh,
+            "{}",
+            serde_json::json!({"at": crate::resources::now(), "path": f.path, "rule": f.rule, "ok": o.ok, "freed": o.freed, "message": o.message})
+        );
     }
 }
 
@@ -219,12 +340,28 @@ mod tests {
         std::fs::create_dir_all(target.join("debug/incremental")).unwrap();
         std::fs::write(target.join("debug/incremental/x"), vec![0u8; 32 * 1024]).unwrap();
         let mk = |id: &str, path: PathBuf, paths: Vec<PathBuf>| Finding {
-            id: id.into(), rule: id.into(), title: id.into(), path, category: Category::BuildArtifact, owner: None, safety: Safety::Safe,
-            bytes: 4096, files: 0, last_activity: None, reason: String::new(), action: Action::Delete { paths }, protected: None,
-            preselected: true, relocate_to: None,
+            id: id.into(),
+            rule: id.into(),
+            title: id.into(),
+            path,
+            category: Category::BuildArtifact,
+            owner: None,
+            safety: Safety::Safe,
+            bytes: 4096,
+            files: 0,
+            last_activity: None,
+            reason: String::new(),
+            action: Action::Delete { paths },
+            protected: None,
+            preselected: true,
+            relocate_to: None,
         };
         let outer = mk("target", target.clone(), vec![target.clone()]);
-        let inner = mk("inc", target.join("*/incremental"), vec![target.join("debug/incremental")]);
+        let inner = mk(
+            "inc",
+            target.join("*/incremental"),
+            vec![target.join("debug/incremental")],
+        );
         let out = execute(&[outer, inner], true);
         assert!(out[0].freed > 0);
         assert_eq!(out[1].freed, 0, "{}", out[1].message);
@@ -237,10 +374,20 @@ mod tests {
         std::fs::write(src.join("sub/w.bin"), b"weights").unwrap();
         let dest = t.path().join("hdd/stratax-relocated/models");
         move_with_symlink(&src, &dest).unwrap();
-        assert!(std::fs::symlink_metadata(&src).unwrap().file_type().is_symlink());
-        assert_eq!(std::fs::read(src.join("sub/w.bin")).unwrap(), b"weights", "readable through the link");
+        assert!(std::fs::symlink_metadata(&src)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(
+            std::fs::read(src.join("sub/w.bin")).unwrap(),
+            b"weights",
+            "readable through the link"
+        );
         assert!(!t.path().join("home/models.stratax-old").exists());
-        assert!(!t.path().join("hdd/stratax-relocated/models.partial").exists());
+        assert!(!t
+            .path()
+            .join("hdd/stratax-relocated/models.partial")
+            .exists());
         // Moving again is refused: it is a symlink now, and the destination exists.
         assert!(move_with_symlink(&src, &dest).is_err());
     }
@@ -249,7 +396,9 @@ mod tests {
     #[test]
     #[ignore]
     fn xdev_move_with_symlink() {
-        let other = std::path::PathBuf::from(std::env::var("STRATAX_XDEV_DIR").expect("set STRATAX_XDEV_DIR"));
+        let other = std::path::PathBuf::from(
+            std::env::var("STRATAX_XDEV_DIR").expect("set STRATAX_XDEV_DIR"),
+        );
         let t = tempfile::tempdir().unwrap();
         let src = t.path().join("cache");
         std::fs::create_dir_all(src.join("a/b")).unwrap();
@@ -259,8 +408,16 @@ mod tests {
         let dest = o.path().join("cache");
         move_with_symlink(&src, &dest).unwrap();
         use std::os::unix::fs::MetadataExt;
-        assert_ne!(std::fs::metadata(t.path()).unwrap().dev(), std::fs::metadata(&dest).unwrap().dev(), "must cross devices");
-        assert_eq!(std::fs::read(src.join("a/rel-link")).unwrap().len(), 1 << 20, "relative links survive");
+        assert_ne!(
+            std::fs::metadata(t.path()).unwrap().dev(),
+            std::fs::metadata(&dest).unwrap().dev(),
+            "must cross devices"
+        );
+        assert_eq!(
+            std::fs::read(src.join("a/rel-link")).unwrap().len(),
+            1 << 20,
+            "relative links survive"
+        );
         std::fs::remove_file(&src).unwrap();
     }
 

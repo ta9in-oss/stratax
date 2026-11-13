@@ -6,7 +6,9 @@ use crate::platform::{self, Platform};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use sysinfo::{ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, RefreshKind, System, UpdateKind};
+use sysinfo::{
+    ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, RefreshKind, System, UpdateKind,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcInfo {
@@ -59,7 +61,10 @@ impl Default for Sampler {
 impl Sampler {
     pub fn new() -> Self {
         let sys = System::new_with_specifics(RefreshKind::everything());
-        Self { sys, plat: platform::current() }
+        Self {
+            sys,
+            plat: platform::current(),
+        }
     }
 
     pub fn sample(&mut self) -> ResourceSnapshot {
@@ -89,7 +94,11 @@ impl Sampler {
                 zombies += 1;
             }
             let pid = pid.as_u32();
-            let cmd: Vec<String> = p.cmd().iter().map(|s| s.to_string_lossy().into_owned()).collect();
+            let cmd: Vec<String> = p
+                .cmd()
+                .iter()
+                .map(|s| s.to_string_lossy().into_owned())
+                .collect();
             let name = p.name().to_string_lossy().into_owned();
             let threads = self.plat.threads_of(pid).unwrap_or(1);
             threads_total += threads as u64;
@@ -115,7 +124,12 @@ impl Sampler {
         ResourceSnapshot {
             at: now(),
             cpu_total: self.sys.global_cpu_usage(),
-            cpu_brand: self.sys.cpus().first().map(|c| c.brand().trim().to_string()).unwrap_or_default(),
+            cpu_brand: self
+                .sys
+                .cpus()
+                .first()
+                .map(|c| c.brand().trim().to_string())
+                .unwrap_or_default(),
             cpu_cores: cores,
             load: [la.one, la.five, la.fifteen],
             mem_total: self.sys.total_memory(),
@@ -137,7 +151,9 @@ pub fn group_agents(procs: &[ProcInfo]) -> Vec<AgentActivity> {
     let mut map: HashMap<String, AgentActivity> = HashMap::new();
     for p in procs {
         let Some(a) = &p.agent else { continue };
-        let kind = classify(&p.name, &[p.cmd.clone()]).map(|x| x.1).unwrap_or(AgentKind::Workload);
+        let kind = classify(&p.name, std::slice::from_ref(&p.cmd))
+            .map(|x| x.1)
+            .unwrap_or(AgentKind::Workload);
         let e = map.entry(a.clone()).or_insert_with(|| AgentActivity {
             agent: a.clone(),
             kind,
@@ -153,13 +169,17 @@ pub fn group_agents(procs: &[ProcInfo]) -> Vec<AgentActivity> {
         e.cpu += p.cpu;
         e.memory += p.memory;
         if let Some(c) = &p.cwd {
-            if c != &PathBuf::from("/") && !c.starts_with("/proc") && !e.cwds.contains(c) && e.cwds.len() < 24 {
+            if c != &PathBuf::from("/")
+                && !c.starts_with("/proc")
+                && !e.cwds.contains(c)
+                && e.cwds.len() < 24
+            {
                 e.cwds.push(c.clone());
             }
         }
     }
     let mut v: Vec<_> = map.into_values().collect();
-    v.sort_by(|a, b| b.memory.cmp(&a.memory));
+    v.sort_by_key(|p| std::cmp::Reverse(p.memory));
     v
 }
 
@@ -173,5 +193,8 @@ pub fn signal(pid: u32, force: bool) -> anyhow::Result<()> {
 }
 
 pub fn now() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }

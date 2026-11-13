@@ -30,7 +30,14 @@ pub struct ScanOptions {
 
 impl Default for ScanOptions {
     fn default() -> Self {
-        Self { roots: vec![platform::home()], max_depth: 9, min_bytes: 32 << 20, tools: true, gentle: true, progress: Arc::new(Progress::default()) }
+        Self {
+            roots: vec![platform::home()],
+            max_depth: 9,
+            min_bytes: 32 << 20,
+            tools: true,
+            gentle: true,
+            progress: Arc::new(Progress::default()),
+        }
     }
 }
 
@@ -90,13 +97,17 @@ fn scan_body(opts: &ScanOptions) -> Report {
     for f in findings.iter_mut() {
         f.preselected = preselect(f, now);
     }
-    findings.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+    findings.sort_by_key(|f| std::cmp::Reverse(f.bytes));
     suggest_relocation(&mut findings, &disks);
 
     let mut sampler = crate::resources::Sampler::new();
     let mut agents = sampler.sample().agents;
     for a in agents.iter_mut() {
-        a.footprint = findings.iter().filter(|f| f.owner.as_deref() == Some(a.agent.as_str())).map(|f| f.bytes).sum();
+        a.footprint = findings
+            .iter()
+            .filter(|f| f.owner.as_deref() == Some(a.agent.as_str()))
+            .map(|f| f.bytes)
+            .sum();
     }
     let totals = category_totals(&findings);
     let unreadable = opts.progress.unreadable.load(Ordering::Relaxed);
@@ -110,7 +121,11 @@ fn scan_body(opts: &ScanOptions) -> Report {
         agents,
         growth: None,
         insights: vec![],
-        scan_status: if unreadable > 0 { "partial".into() } else { "complete".into() },
+        scan_status: if unreadable > 0 {
+            "partial".into()
+        } else {
+            "complete".into()
+        },
         unreadable,
     };
     report.growth = crate::history::record_and_compare(&report).ok().flatten();
@@ -121,7 +136,8 @@ fn scan_body(opts: &ScanOptions) -> Report {
 
 /// The previous report, so UIs can open instantly and rescan in the background.
 pub fn load_last() -> Option<Report> {
-    serde_json::from_slice(&fs::read(crate::history::data_dir().join("last-report.json")).ok()?).ok()
+    serde_json::from_slice(&fs::read(crate::history::data_dir().join("last-report.json")).ok()?)
+        .ok()
 }
 
 fn save_last(r: &Report) {
@@ -138,13 +154,22 @@ fn save_last(r: &Report) {
 /// Big, rarely-written data belongs on the slow, roomy disk — not in the bin.
 fn suggest_relocation(findings: &mut [Finding], disks: &[DiskInfo]) {
     let home = platform::home();
-    let home_dev = disks.iter().filter(|d| d.mount.as_ref().is_some_and(|m| home.starts_with(m))).max_by_key(|d| d.mount.as_ref().map(|m| m.as_os_str().len()));
+    let home_dev = disks
+        .iter()
+        .filter(|d| d.mount.as_ref().is_some_and(|m| home.starts_with(m)))
+        .max_by_key(|d| d.mount.as_ref().map(|m| m.as_os_str().len()));
     let Some(home_dev) = home_dev else { return };
     let Some(target) = disks
         .iter()
         // Only disks that mount at boot: otherwise every moved folder becomes a
         // dangling symlink after a reboot until something mounts the disk.
-        .filter(|d| d.mount.is_some() && d.in_fstab && d.device != home_dev.device && d.available > 64 << 30 && !d.removable)
+        .filter(|d| {
+            d.mount.is_some()
+                && d.in_fstab
+                && d.device != home_dev.device
+                && d.available > 64 << 30
+                && !d.removable
+        })
         .max_by_key(|d| d.available)
     else {
         return;
@@ -155,7 +180,9 @@ fn suggest_relocation(findings: &mut [Finding], disks: &[DiskInfo]) {
         let candidate = f.bytes > 1 << 30
             && f.protected.is_none()
             && f.path.starts_with(&home)
-            && (matches!(f.category, Category::Models | Category::Toolchain) || (f.safety == Safety::Review && matches!(f.category, Category::AppCache | Category::AgentData)));
+            && (matches!(f.category, Category::Models | Category::Toolchain)
+                || (f.safety == Safety::Review
+                    && matches!(f.category, Category::AppCache | Category::AgentData)));
         if candidate && f.bytes < budget {
             budget -= f.bytes;
             f.relocate_to = Some(root.clone());
@@ -163,7 +190,17 @@ fn suggest_relocation(findings: &mut [Finding], disks: &[DiskInfo]) {
     }
 }
 
-fn mk(rule: &str, title: impl Into<String>, path: PathBuf, category: Category, owner: Option<&str>, safety: Safety, reason: impl Into<String>, action: Action) -> Finding {
+#[allow(clippy::too_many_arguments)]
+fn mk(
+    rule: &str,
+    title: impl Into<String>,
+    path: PathBuf,
+    category: Category,
+    owner: Option<&str>,
+    safety: Safety,
+    reason: impl Into<String>,
+    action: Action,
+) -> Finding {
     let u = walk::usage(&path);
     Finding {
         id: stable_id(rule, &path),
@@ -191,24 +228,47 @@ fn known_findings(plat: &dyn Platform, home: &Path) -> Vec<Finding> {
         .par_iter()
         .flat_map_iter(|k| {
             let bases: Vec<PathBuf> = if k.path.starts_with("{tmp}") {
-                tmps.iter().map(|t| rules::expand(k.path, home, t, uid)).collect()
+                tmps.iter()
+                    .map(|t| rules::expand(k.path, home, t, uid))
+                    .collect()
             } else {
                 vec![rules::expand(k.path, home, Path::new("/tmp"), uid)]
             };
-            bases.into_iter().filter(|b| b.exists()).flat_map(move |base| expand_known(k, base)).collect::<Vec<_>>()
+            bases
+                .into_iter()
+                .filter(|b| b.exists())
+                .flat_map(move |base| expand_known(k, base))
+                .collect::<Vec<_>>()
         })
         .collect()
 }
 
 fn expand_known(k: &rules::Known, base: PathBuf) -> Vec<Finding> {
     let one = |path: PathBuf, title: String, reason: String, how: How| {
-        mk(k.id, title, path.clone(), k.category, k.owner, k.safety, reason, rules::action_for(how, &path))
+        mk(
+            k.id,
+            title,
+            path.clone(),
+            k.category,
+            k.owner,
+            k.safety,
+            reason,
+            rules::action_for(how, &path),
+        )
     };
     if k.how != How::PerChild {
         return vec![one(base, k.title.into(), k.reason.into(), k.how)];
     }
-    let children = |p: &Path| -> Vec<PathBuf> { fs::read_dir(p).map(|rd| rd.flatten().map(|e| e.path()).collect()).unwrap_or_default() };
-    let name = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let children = |p: &Path| -> Vec<PathBuf> {
+        fs::read_dir(p)
+            .map(|rd| rd.flatten().map(|e| e.path()).collect())
+            .unwrap_or_default()
+    };
+    let name = |p: &Path| {
+        p.file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    };
     match k.id {
         // /tmp/claude-<uid>/<project-slug>/<session-uuid>
         "claude.tmp-sessions" => children(&base)
@@ -216,16 +276,32 @@ fn expand_known(k: &rules::Known, base: PathBuf) -> Vec<Finding> {
             .filter(|p| p.is_dir())
             .flat_map_iter(|proj| {
                 let slug = name(&proj);
-                let sessions: Vec<PathBuf> = children(&proj).into_iter().filter(|p| p.is_dir()).collect();
+                let sessions: Vec<PathBuf> =
+                    children(&proj).into_iter().filter(|p| p.is_dir()).collect();
                 if sessions.is_empty() || !slug.starts_with('-') {
-                    return vec![one(proj, format!("Claude Code temp · {slug}"), k.reason.into(), How::Delete)];
+                    return vec![one(
+                        proj,
+                        format!("Claude Code temp · {slug}"),
+                        k.reason.into(),
+                        How::Delete,
+                    )];
                 }
                 sessions
                     .into_iter()
                     .map(|s| {
-                        let project = slug.trim_start_matches('-').rsplit('-').next().unwrap_or(&slug).to_string();
+                        let project = slug
+                            .trim_start_matches('-')
+                            .rsplit('-')
+                            .next()
+                            .unwrap_or(&slug)
+                            .to_string();
                         let sid: String = name(&s).chars().take(8).collect();
-                        one(s, format!("Claude session {sid} · {project}"), k.reason.into(), How::Delete)
+                        one(
+                            s,
+                            format!("Claude session {sid} · {project}"),
+                            k.reason.into(),
+                            How::Delete,
+                        )
                     })
                     .collect()
             })
@@ -233,10 +309,27 @@ fn expand_known(k: &rules::Known, base: PathBuf) -> Vec<Finding> {
         "mutants.tmp" => children(&base)
             .into_par_iter()
             .filter(|p| name(p).starts_with("cargo-mutants"))
-            .map(|p| one(p.clone(), format!("cargo-mutants temp · {}", name(&p)), k.reason.into(), How::Delete))
+            .map(|p| {
+                one(
+                    p.clone(),
+                    format!("cargo-mutants temp · {}", name(&p)),
+                    k.reason.into(),
+                    How::Delete,
+                )
+            })
             .collect(),
         "tool.rustup" => {
-            let default = Command::new("rustup").args(["default"]).output().ok().map(|o| String::from_utf8_lossy(&o.stdout).split_whitespace().next().unwrap_or("").to_string());
+            let default = Command::new("rustup")
+                .args(["default"])
+                .output()
+                .ok()
+                .map(|o| {
+                    String::from_utf8_lossy(&o.stdout)
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or("")
+                        .to_string()
+                });
             children(&base)
                 .into_par_iter()
                 .filter(|p| default.as_deref() != Some(name(p).as_str()))
@@ -248,7 +341,8 @@ fn expand_known(k: &rules::Known, base: PathBuf) -> Vec<Finding> {
                 .collect()
         }
         "tool.pyenv" => {
-            let global = fs::read_to_string(base.parent().unwrap().join("version")).unwrap_or_default();
+            let global =
+                fs::read_to_string(base.parent().unwrap().join("version")).unwrap_or_default();
             let keep: Vec<String> = global.split_whitespace().map(str::to_string).collect();
             children(&base)
                 .into_par_iter()
@@ -258,22 +352,45 @@ fn expand_known(k: &rules::Known, base: PathBuf) -> Vec<Finding> {
         }
         "tool.nvm" => {
             // GUI launches have no NVM_BIN: fall back to the nvm default alias.
-            let nvm = base.parent().and_then(Path::parent).unwrap_or(&base).to_path_buf();
+            let nvm = base
+                .parent()
+                .and_then(Path::parent)
+                .unwrap_or(&base)
+                .to_path_buf();
             let default = fs::read_to_string(nvm.join("alias/default")).ok().map(|v| {
                 let v = v.trim().trim_start_matches('v').to_string();
                 base.join(format!("v{v}"))
             });
-            let current = std::env::var("NVM_BIN").ok().and_then(|b| PathBuf::from(b).parent().map(Path::to_path_buf));
+            let current = std::env::var("NVM_BIN")
+                .ok()
+                .and_then(|b| PathBuf::from(b).parent().map(Path::to_path_buf));
             children(&base)
                 .into_par_iter()
-                .filter(|p| current.as_deref() != Some(p.as_path()) && default.as_deref() != Some(p.as_path()))
-                .map(|p| one(p.clone(), format!("Node {}", name(&p)), "Not the active nvm version.".into(), How::Delete))
+                .filter(|p| {
+                    current.as_deref() != Some(p.as_path())
+                        && default.as_deref() != Some(p.as_path())
+                })
+                .map(|p| {
+                    one(
+                        p.clone(),
+                        format!("Node {}", name(&p)),
+                        "Not the active nvm version.".into(),
+                        How::Delete,
+                    )
+                })
                 .collect()
         }
         _ => children(&base)
             .into_par_iter()
             .filter(|p| p.is_dir())
-            .map(|p| one(p.clone(), format!("{} · {}", k.title, name(&p)), k.reason.into(), How::Delete))
+            .map(|p| {
+                one(
+                    p.clone(),
+                    format!("{} · {}", k.title, name(&p)),
+                    k.reason.into(),
+                    How::Delete,
+                )
+            })
             .collect(),
     }
 }
@@ -282,12 +399,18 @@ fn expand_known(k: &rules::Known, base: PathBuf) -> Vec<Finding> {
 /// match, so the cost is proportional to *source* trees, not their output.
 fn project_artifacts(roots: &[PathBuf], max_depth: usize, home: &Path) -> Vec<Finding> {
     let mut hits: Vec<(PathBuf, &'static rules::ArtifactRule)> = Vec::new();
-    let skip_top: Vec<PathBuf> = [".cache", ".config", ".local", ".cargo", ".rustup", ".npm", ".nvm", ".pyenv", "go", "snap", "Android", ".bun", ".vscode", ".m2", ".gradle", ".var", ".claude", ".codex", ".cursor", ".ollama"]
-        .iter()
-        .map(|d| home.join(d))
-        .collect();
+    let skip_top: Vec<PathBuf> = [
+        ".cache", ".config", ".local", ".cargo", ".rustup", ".npm", ".nvm", ".pyenv", "go", "snap",
+        "Android", ".bun", ".vscode", ".m2", ".gradle", ".var", ".claude", ".codex", ".cursor",
+        ".ollama",
+    ]
+    .iter()
+    .map(|d| home.join(d))
+    .collect();
     let found = std::sync::Mutex::new(Vec::new());
-    roots.par_iter().for_each(|r| find_artifacts(r, 0, max_depth, &skip_top, &found));
+    roots
+        .par_iter()
+        .for_each(|r| find_artifacts(r, 0, max_depth, &skip_top, &found));
     hits.append(&mut found.into_inner().unwrap());
     hits.into_par_iter()
         .map(|(path, r)| -> Vec<Finding> {
@@ -331,12 +454,21 @@ fn project_artifacts(roots: &[PathBuf], max_depth: usize, home: &Path) -> Vec<Fi
         .collect()
 }
 
-fn find_artifacts(dir: &Path, depth: usize, max: usize, skip: &[PathBuf], out: &std::sync::Mutex<Vec<(PathBuf, &'static rules::ArtifactRule)>>) {
+fn find_artifacts(
+    dir: &Path,
+    depth: usize,
+    max: usize,
+    skip: &[PathBuf],
+    out: &std::sync::Mutex<Vec<(PathBuf, &'static rules::ArtifactRule)>>,
+) {
     if depth > max || skip.iter().any(|s| s == dir) {
         return;
     }
     let Ok(rd) = fs::read_dir(dir) else { return };
-    let entries: Vec<_> = rd.flatten().filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false)).collect();
+    let entries: Vec<_> = rd
+        .flatten()
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .collect();
     let parent_is_claude = dir.file_name().is_some_and(|n| n == ".claude");
     let mut recurse = Vec::new();
     for e in entries {
@@ -359,12 +491,17 @@ fn find_artifacts(dir: &Path, depth: usize, max: usize, skip: &[PathBuf], out: &
             }
             continue;
         }
-        if name == ".git" || name == "node_modules" || (name.starts_with('.') && !WALK_HIDDEN_OK.contains(&name.as_ref())) {
+        if name == ".git"
+            || name == "node_modules"
+            || (name.starts_with('.') && !WALK_HIDDEN_OK.contains(&name.as_ref()))
+        {
             continue;
         }
         recurse.push(path);
     }
-    recurse.par_iter().for_each(|p| find_artifacts(p, depth + 1, max, skip, out));
+    recurse
+        .par_iter()
+        .for_each(|p| find_artifacts(p, depth + 1, max, skip, out));
 }
 
 fn rust_incremental(target: &Path) -> (u64, Vec<PathBuf>) {
@@ -407,7 +544,12 @@ fn tool_findings() -> Vec<Finding> {
 }
 
 fn docker_findings() -> Vec<Finding> {
-    let Ok(out) = Command::new("docker").args(["system", "df", "--format", "{{json .}}"]).output() else { return vec![] };
+    let Ok(out) = Command::new("docker")
+        .args(["system", "df", "--format", "{{json .}}"])
+        .output()
+    else {
+        return vec![];
+    };
     if !out.status.success() {
         return vec![];
     }
@@ -448,7 +590,9 @@ fn docker_findings() -> Vec<Finding> {
 }
 
 fn snap_findings() -> Vec<Finding> {
-    let Ok(out) = Command::new("snap").args(["list", "--all"]).output() else { return vec![] };
+    let Ok(out) = Command::new("snap").args(["list", "--all"]).output() else {
+        return vec![];
+    };
     String::from_utf8_lossy(&out.stdout)
         .lines()
         .skip(1)
@@ -457,8 +601,24 @@ fn snap_findings() -> Vec<Finding> {
             let c: Vec<&str> = l.split_whitespace().collect();
             let (name, rev) = (c.first()?, c.get(2)?);
             let path = PathBuf::from(format!("/var/lib/snapd/snaps/{name}_{rev}.snap"));
-            let mut f = mk("snap.disabled", format!("Old snap {name} r{rev}"), path, Category::System, Some("snap"), Safety::Safe,
-                "Disabled snap revision kept for rollback.", Action::RunTool { program: "sudo".into(), args: vec!["snap".into(), "remove".into(), name.to_string(), format!("--revision={rev}")] });
+            let mut f = mk(
+                "snap.disabled",
+                format!("Old snap {name} r{rev}"),
+                path,
+                Category::System,
+                Some("snap"),
+                Safety::Safe,
+                "Disabled snap revision kept for rollback.",
+                Action::RunTool {
+                    program: "sudo".into(),
+                    args: vec![
+                        "snap".into(),
+                        "remove".into(),
+                        name.to_string(),
+                        format!("--revision={rev}"),
+                    ],
+                },
+            );
             f.last_activity = None;
             Some(f)
         })
@@ -470,8 +630,19 @@ fn apt_cache() -> Vec<Finding> {
     if !p.exists() {
         return vec![];
     }
-    vec![mk("apt.archives", "APT package downloads", p, Category::System, Some("apt"), Safety::Safe, "Downloaded .deb files.",
-        Action::RunTool { program: "sudo".into(), args: vec!["apt-get".into(), "clean".into()] })]
+    vec![mk(
+        "apt.archives",
+        "APT package downloads",
+        p,
+        Category::System,
+        Some("apt"),
+        Safety::Safe,
+        "Downloaded .deb files.",
+        Action::RunTool {
+            program: "sudo".into(),
+            args: vec!["apt-get".into(), "clean".into()],
+        },
+    )]
 }
 
 fn parse_size(s: &str) -> Option<u64> {
@@ -503,7 +674,15 @@ fn apply_guards(findings: &mut [Finding], guard: &Guard, now: i64) {
         if f.path.starts_with("docker://") {
             return;
         }
-        let probe = if f.rule == "rust.incremental" { f.path.parent().and_then(Path::parent).unwrap_or(&f.path).to_path_buf() } else { f.path.clone() };
+        let probe = if f.rule == "rust.incremental" {
+            f.path
+                .parent()
+                .and_then(Path::parent)
+                .unwrap_or(&f.path)
+                .to_path_buf()
+        } else {
+            f.path.clone()
+        };
         if let Some(who) = guard.in_use(&probe) {
             f.protected = Some(format!("in use by {who}"));
             return;
@@ -511,14 +690,23 @@ fn apply_guards(findings: &mut [Finding], guard: &Guard, now: i64) {
         let age = f.last_activity.map(|t| now - t).unwrap_or(i64::MAX);
         match f.rule.as_str() {
             "claude.tmp-sessions" => {
-                let slug = f.path.parent().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                if live_slugs.iter().any(|s| *s == slug) && age < 12 * HOUR {
-                    f.protected = Some("Claude Code is running in this project and the session is recent".into());
+                let slug = f
+                    .path
+                    .parent()
+                    .and_then(|p| p.file_name())
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                if live_slugs.contains(&slug) && age < 12 * HOUR {
+                    f.protected = Some(
+                        "Claude Code is running in this project and the session is recent".into(),
+                    );
                 } else if age < 2 * HOUR {
                     f.protected = Some("session touched in the last 2 hours".into());
                 }
             }
-            "mutants.tmp" if mutants_running && age < HOUR => f.protected = Some("a cargo-mutants run is in progress".into()),
+            "mutants.tmp" if mutants_running && age < HOUR => {
+                f.protected = Some("a cargo-mutants run is in progress".into())
+            }
             "agent.worktrees" | "codex.worktrees" | "cursor.worktrees" => worktree_guard(f),
             _ => {}
         }
@@ -530,11 +718,24 @@ fn worktree_guard(f: &mut Finding) {
     let wts: Vec<PathBuf> = if f.path.join(".git").exists() {
         vec![f.path.clone()]
     } else {
-        fs::read_dir(&f.path).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.join(".git").exists()).collect()
+        fs::read_dir(&f.path)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.join(".git").exists())
+            .collect()
     };
     let blockers: Vec<String> = wts
         .iter()
-        .filter_map(|w| guard::worktree_blocker(w).map(|b| format!("{}: {b}", w.file_name().unwrap_or_default().to_string_lossy())))
+        .filter_map(|w| {
+            guard::worktree_blocker(w).map(|b| {
+                format!(
+                    "{}: {b}",
+                    w.file_name().unwrap_or_default().to_string_lossy()
+                )
+            })
+        })
         .collect();
     if !blockers.is_empty() {
         f.protected = Some(blockers.join("; "));
@@ -571,14 +772,22 @@ pub fn category_totals(findings: &[Finding]) -> Vec<CategoryTotal> {
     sorted.sort_by(|a, b| a.path.cmp(&b.path));
     let mut top: Vec<&Finding> = Vec::new();
     for f in sorted {
-        if top.last().is_some_and(|p: &&Finding| f.path.starts_with(&p.path) && !f.path.starts_with("docker://")) {
+        if top.last().is_some_and(|p: &&Finding| {
+            f.path.starts_with(&p.path) && !f.path.starts_with("docker://")
+        }) {
             continue;
         }
         top.push(f);
     }
     let mut map: std::collections::HashMap<Category, CategoryTotal> = Default::default();
     for f in top {
-        let e = map.entry(f.category).or_insert_with(|| CategoryTotal { category: f.category, label: f.category.label().into(), bytes: 0, reclaimable: 0, count: 0 });
+        let e = map.entry(f.category).or_insert_with(|| CategoryTotal {
+            category: f.category,
+            label: f.category.label().into(),
+            bytes: 0,
+            reclaimable: 0,
+            count: 0,
+        });
         e.bytes += f.bytes;
         e.count += 1;
         if f.protected.is_none() && f.safety != Safety::Review {
@@ -586,17 +795,24 @@ pub fn category_totals(findings: &[Finding]) -> Vec<CategoryTotal> {
         }
     }
     let mut v: Vec<_> = map.into_values().collect();
-    v.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+    v.sort_by_key(|f| std::cmp::Reverse(f.bytes));
     v
 }
 
 fn short(p: &str) -> String {
     let home = platform::home().display().to_string();
-    p.strip_prefix(&home).map(|r| format!("~{r}")).unwrap_or_else(|| p.to_string())
+    p.strip_prefix(&home)
+        .map(|r| format!("~{r}"))
+        .unwrap_or_else(|| p.to_string())
 }
 
 pub fn hostname() -> String {
-    fs::read_to_string("/etc/hostname").map(|s| s.trim().to_string()).ok().filter(|s| !s.is_empty()).or_else(sysinfo::System::host_name).unwrap_or_else(|| "localhost".into())
+    fs::read_to_string("/etc/hostname")
+        .map(|s| s.trim().to_string())
+        .ok()
+        .filter(|s| !s.is_empty())
+        .or_else(sysinfo::System::host_name)
+        .unwrap_or_else(|| "localhost".into())
 }
 
 #[cfg(test)]
@@ -609,7 +825,11 @@ mod tests {
         let proj = t.path().join("proj");
         fs::create_dir_all(proj.join("target/debug/incremental/x")).unwrap();
         fs::write(proj.join("Cargo.toml"), "[package]").unwrap();
-        fs::write(proj.join("target/debug/incremental/x/blob"), vec![1u8; 64 * 1024]).unwrap();
+        fs::write(
+            proj.join("target/debug/incremental/x/blob"),
+            vec![1u8; 64 * 1024],
+        )
+        .unwrap();
         fs::create_dir_all(proj.join("mutants.out")).unwrap();
         fs::create_dir_all(proj.join("target/nested/node_modules")).unwrap();
         fs::write(proj.join("target/nested/package.json"), "{}").unwrap();
@@ -617,7 +837,10 @@ mod tests {
         let rules: Vec<&str> = v.iter().map(|f| f.rule.as_str()).collect();
         assert!(rules.contains(&"rust.target"));
         assert!(rules.contains(&"mutants.out"));
-        assert!(!rules.contains(&"node.modules"), "must not descend into target/");
+        assert!(
+            !rules.contains(&"node.modules"),
+            "must not descend into target/"
+        );
         let target = v.iter().find(|f| f.rule == "rust.target").unwrap();
         assert!(target.reason.contains("incremental"));
     }
@@ -625,9 +848,21 @@ mod tests {
     #[test]
     fn totals_skip_nested_findings() {
         let f = |p: &str, b: u64| Finding {
-            id: p.into(), rule: "r".into(), title: p.into(), path: p.into(), category: Category::BuildArtifact, owner: None,
-            safety: Safety::Rebuild, bytes: b, files: 0, last_activity: None, reason: String::new(),
-            action: Action::ReviewOnly, protected: None, preselected: false, relocate_to: None,
+            id: p.into(),
+            rule: "r".into(),
+            title: p.into(),
+            path: p.into(),
+            category: Category::BuildArtifact,
+            owner: None,
+            safety: Safety::Rebuild,
+            bytes: b,
+            files: 0,
+            last_activity: None,
+            reason: String::new(),
+            action: Action::ReviewOnly,
+            protected: None,
+            preselected: false,
+            relocate_to: None,
         };
         let t = category_totals(&[f("/a", 100), f("/a/target", 60), f("/b", 5)]);
         assert_eq!(t[0].bytes, 105);
@@ -637,9 +872,21 @@ mod tests {
     fn preselection_follows_age_and_safety() {
         let now = 100 * DAY;
         let mut f = Finding {
-            id: "x".into(), rule: "r".into(), title: "t".into(), path: "/x".into(), category: Category::BuildArtifact, owner: None,
-            safety: Safety::Rebuild, bytes: 1, files: 0, last_activity: Some(now - 5 * DAY), reason: String::new(),
-            action: Action::Delete { paths: vec![] }, protected: None, preselected: false, relocate_to: None,
+            id: "x".into(),
+            rule: "r".into(),
+            title: "t".into(),
+            path: "/x".into(),
+            category: Category::BuildArtifact,
+            owner: None,
+            safety: Safety::Rebuild,
+            bytes: 1,
+            files: 0,
+            last_activity: Some(now - 5 * DAY),
+            reason: String::new(),
+            action: Action::Delete { paths: vec![] },
+            protected: None,
+            preselected: false,
+            relocate_to: None,
         };
         assert!(!preselect(&f, now));
         f.last_activity = Some(now - 30 * DAY);
@@ -654,13 +901,34 @@ mod tests {
         let cwd = Path::new("/home/u/work/my_app");
         let slug = rules::claude_slug(cwd);
         assert_eq!(slug, "-home-u-work-my-app");
-        let guard = Guard::with_procs(vec![crate::platform::ProcPaths { pid: 7, name: "claude".into(), cwd: Some(cwd.into()), open: vec![] }]);
-        let mut f = |dir: &str, age: i64| Finding {
-            id: dir.into(), rule: "claude.tmp-sessions".into(), title: "s".into(), path: PathBuf::from(format!("/tmp/claude-1000/{dir}/abc")),
-            category: Category::AgentSession, owner: None, safety: Safety::Safe, bytes: 1, files: 0, last_activity: Some(now - age),
-            reason: String::new(), action: Action::Delete { paths: vec![] }, protected: None, preselected: false, relocate_to: None,
+        let guard = Guard::with_procs(vec![crate::platform::ProcPaths {
+            pid: 7,
+            name: "claude".into(),
+            cwd: Some(cwd.into()),
+            open: vec![],
+        }]);
+        let f = |dir: &str, age: i64| Finding {
+            id: dir.into(),
+            rule: "claude.tmp-sessions".into(),
+            title: "s".into(),
+            path: PathBuf::from(format!("/tmp/claude-1000/{dir}/abc")),
+            category: Category::AgentSession,
+            owner: None,
+            safety: Safety::Safe,
+            bytes: 1,
+            files: 0,
+            last_activity: Some(now - age),
+            reason: String::new(),
+            action: Action::Delete { paths: vec![] },
+            protected: None,
+            preselected: false,
+            relocate_to: None,
         };
-        let mut v = vec![f(&slug, 5 * HOUR), f("-home-u-other", 5 * HOUR), f("-home-u-other", 10 * 60)];
+        let mut v = vec![
+            f(&slug, 5 * HOUR),
+            f("-home-u-other", 5 * HOUR),
+            f("-home-u-other", 10 * 60),
+        ];
         apply_guards(&mut v, &guard, now);
         assert!(v[0].protected.is_some(), "live project session");
         assert!(v[1].protected.is_none(), "dead project, 5h idle");
@@ -671,9 +939,21 @@ mod tests {
     fn toolchains_and_big_unknown_caches_are_opt_in() {
         let now = 100 * DAY;
         let mut f = Finding {
-            id: "x".into(), rule: "tool.pyenv".into(), title: "t".into(), path: "/x".into(), category: Category::Toolchain, owner: None,
-            safety: Safety::Rebuild, bytes: 5 << 30, files: 0, last_activity: Some(0), reason: String::new(),
-            action: Action::Delete { paths: vec![] }, protected: None, preselected: false, relocate_to: None,
+            id: "x".into(),
+            rule: "tool.pyenv".into(),
+            title: "t".into(),
+            path: "/x".into(),
+            category: Category::Toolchain,
+            owner: None,
+            safety: Safety::Rebuild,
+            bytes: 5 << 30,
+            files: 0,
+            last_activity: Some(0),
+            reason: String::new(),
+            action: Action::Delete { paths: vec![] },
+            protected: None,
+            preselected: false,
+            relocate_to: None,
         };
         assert!(!preselect(&f, now));
         f.category = Category::AppCache;

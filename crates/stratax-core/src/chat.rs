@@ -61,7 +61,10 @@ fn system_prompt(r: &Report) -> String {
             .map(|f| serde_json::json!({"id": f.id, "title": f.title, "category": f.category, "owner": f.owner, "safety": f.safety, "size": human_bytes(f.bytes), "age_days": f.age_days(r.generated_at).map(|d| d.round()), "protected": f.protected}))
             .collect(),
     );
-    format!("{SYSTEM}\n\n<scan generated_at=\"{}\">\n{}\n</scan>", r.generated_at, ctx)
+    format!(
+        "{SYSTEM}\n\n<scan generated_at=\"{}\">\n{}\n</scan>",
+        r.generated_at, ctx
+    )
 }
 
 pub fn chat(
@@ -96,7 +99,13 @@ pub fn chat(
     Ok(out)
 }
 
-fn claude_code(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &AtomicBool, on_text: &mut dyn FnMut(&str)) -> anyhow::Result<String> {
+fn claude_code(
+    system: &str,
+    msgs: &[ChatMsg],
+    cfg: &AdvisorConfig,
+    cancel: &AtomicBool,
+    on_text: &mut dyn FnMut(&str),
+) -> anyhow::Result<String> {
     // `claude -p` takes one prompt: replay the transcript in it. Resending the
     // whole conversation (instead of --resume) keeps all providers identical.
     let mut prompt = String::new();
@@ -110,7 +119,18 @@ fn claude_code(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &Ato
     prompt.push_str(&msgs.last().unwrap().content);
 
     let mut cmd = crate::advisor::isolated_claude();
-    cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--no-session-persistence", "--tools", "", "--system-prompt", system]);
+    cmd.args([
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--include-partial-messages",
+        "--no-session-persistence",
+        "--tools",
+        "",
+        "--system-prompt",
+        system,
+    ]);
     if let Some(m) = &cfg.model {
         cmd.args(["--model", m]);
     }
@@ -119,7 +139,9 @@ fn claude_code(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &Ato
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| anyhow::anyhow!("could not start `claude` (is Claude Code installed?): {e}"))?;
+        .map_err(|e| {
+            anyhow::anyhow!("could not start `claude` (is Claude Code installed?): {e}")
+        })?;
     child.stdin.take().unwrap().write_all(prompt.as_bytes())?;
     // Drain stderr concurrently: a full pipe would block `claude` mid-reply.
     let mut errpipe = child.stderr.take().unwrap();
@@ -135,9 +157,14 @@ fn claude_code(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &Ato
             let _ = child.kill();
             break;
         }
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(&line?) else { continue };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&line?) else {
+            continue;
+        };
         match v["type"].as_str() {
-            Some("stream_event") if v["event"]["type"] == "content_block_delta" && v["event"]["delta"]["type"] == "text_delta" => {
+            Some("stream_event")
+                if v["event"]["type"] == "content_block_delta"
+                    && v["event"]["delta"]["type"] == "text_delta" =>
+            {
                 if let Some(t) = v["event"]["delta"]["text"].as_str() {
                     text.push_str(t);
                     on_text(t);
@@ -159,15 +186,27 @@ fn claude_code(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &Ato
     }
     match result {
         Some(Err(e)) => anyhow::bail!("claude -p: {e}"),
-        None if !status.success() => anyhow::bail!("claude -p failed: {}", stderr.join().unwrap_or_default().trim()),
+        None if !status.success() => anyhow::bail!(
+            "claude -p failed: {}",
+            stderr.join().unwrap_or_default().trim()
+        ),
         _ => Ok(text),
     }
 }
 
-fn anthropic(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &AtomicBool, on_text: &mut dyn FnMut(&str)) -> anyhow::Result<String> {
+fn anthropic(
+    system: &str,
+    msgs: &[ChatMsg],
+    cfg: &AdvisorConfig,
+    cancel: &AtomicBool,
+    on_text: &mut dyn FnMut(&str),
+) -> anyhow::Result<String> {
     let env = cfg.api_key_env.as_deref().unwrap_or("ANTHROPIC_API_KEY");
     let key = std::env::var(env).map_err(|_| anyhow::anyhow!("{env} is not set"))?;
-    let base = cfg.base_url.as_deref().unwrap_or("https://api.anthropic.com");
+    let base = cfg
+        .base_url
+        .as_deref()
+        .unwrap_or("https://api.anthropic.com");
     let body = serde_json::json!({
         "model": cfg.model.as_deref().unwrap_or("claude-opus-5-5"),
         "max_tokens": 64000,
@@ -193,8 +232,12 @@ fn anthropic(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &Atomi
             break;
         }
         let line = line?;
-        let Some(data) = line.strip_prefix("data:") else { continue };
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(data.trim()) else { continue };
+        let Some(data) = line.strip_prefix("data:") else {
+            continue;
+        };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(data.trim()) else {
+            continue;
+        };
         match v["type"].as_str() {
             Some("content_block_delta") if v["delta"]["type"] == "text_delta" => {
                 if let Some(t) = v["delta"]["text"].as_str() {
@@ -203,21 +246,41 @@ fn anthropic(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &Atomi
                 }
             }
             Some("message_delta") if v["delta"]["stop_reason"] == "refusal" => {
-                anyhow::bail!("the model declined: {}", v["delta"]["stop_details"]["explanation"].as_str().unwrap_or("no details"));
+                anyhow::bail!(
+                    "the model declined: {}",
+                    v["delta"]["stop_details"]["explanation"]
+                        .as_str()
+                        .unwrap_or("no details")
+                );
             }
-            Some("error") => anyhow::bail!("API error: {}", v["error"]["message"].as_str().unwrap_or("unknown")),
+            Some("error") => anyhow::bail!(
+                "API error: {}",
+                v["error"]["message"].as_str().unwrap_or("unknown")
+            ),
             _ => {}
         }
     }
     Ok(text)
 }
 
-fn openai_compat(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &AtomicBool, on_text: &mut dyn FnMut(&str)) -> anyhow::Result<String> {
+fn openai_compat(
+    system: &str,
+    msgs: &[ChatMsg],
+    cfg: &AdvisorConfig,
+    cancel: &AtomicBool,
+    on_text: &mut dyn FnMut(&str),
+) -> anyhow::Result<String> {
     let env = cfg.api_key_env.as_deref().unwrap_or("OPENAI_API_KEY");
     let key = std::env::var(env).map_err(|_| anyhow::anyhow!("{env} is not set"))?;
-    let base = cfg.base_url.as_deref().unwrap_or("https://apihub.agnes-ai.com/v1");
+    let base = cfg
+        .base_url
+        .as_deref()
+        .unwrap_or("https://apihub.agnes-ai.com/v1");
     let mut messages = vec![serde_json::json!({"role": "system", "content": system})];
-    messages.extend(msgs.iter().map(|m| serde_json::json!({"role": m.role, "content": m.content})));
+    messages.extend(
+        msgs.iter()
+            .map(|m| serde_json::json!({"role": m.role, "content": m.content})),
+    );
     let body = serde_json::json!({
         "model": cfg.model.as_deref().unwrap_or("agnes-2.5-pro-alpha"),
         "messages": messages,
@@ -234,11 +297,15 @@ fn openai_compat(system: &str, msgs: &[ChatMsg], cfg: &AdvisorConfig, cancel: &A
             break;
         }
         let line = line?;
-        let Some(data) = line.strip_prefix("data:").map(str::trim) else { continue };
+        let Some(data) = line.strip_prefix("data:").map(str::trim) else {
+            continue;
+        };
         if data == "[DONE]" {
             break;
         }
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(data) else { continue };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(data) else {
+            continue;
+        };
         if let Some(t) = v["choices"][0]["delta"]["content"].as_str() {
             text.push_str(t);
             on_text(t);
@@ -252,7 +319,11 @@ pub fn referenced_ids(r: &Report, text: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for part in text.split('[').skip(1) {
         if let Some(id) = part.split(']').next() {
-            if id.starts_with('f') && id.len() == 13 && !out.iter().any(|x| x == id) && r.findings.iter().any(|f| f.id == id) {
+            if id.starts_with('f')
+                && id.len() == 13
+                && !out.iter().any(|x| x == id)
+                && r.findings.iter().any(|f| f.id == id)
+            {
                 out.push(id.to_string());
             }
         }

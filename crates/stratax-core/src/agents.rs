@@ -31,20 +31,61 @@ pub enum AgentKind {
 
 /// (family, kind, matcher on lowercase "comm\0cmdline").
 const RULES: &[(&str, AgentKind, &[&str])] = &[
-    ("cargo-mutants", AgentKind::Workload, &["cargo-mutants", "cargo\0mutants\0"]),
+    (
+        "cargo-mutants",
+        AgentKind::Workload,
+        &["cargo-mutants", "cargo\0mutants\0"],
+    ),
     ("stryker", AgentKind::Workload, &["stryker"]),
     ("mutmut", AgentKind::Workload, &["mutmut"]),
-    ("claude-code", AgentKind::Agent, &["/claude\0", "\0claude\0", "claude-code", "@anthropic-ai/claude"]),
+    (
+        "claude-code",
+        AgentKind::Agent,
+        &[
+            "/claude\0",
+            "\0claude\0",
+            "claude-code",
+            "@anthropic-ai/claude",
+        ],
+    ),
     ("codex", AgentKind::Agent, &["codex"]),
     ("cursor", AgentKind::Agent, &["cursor"]),
     ("gemini-cli", AgentKind::Agent, &["gemini"]),
     ("opencode", AgentKind::Agent, &["opencode"]),
     ("aider", AgentKind::Agent, &["aider"]),
-    ("copilot", AgentKind::Agent, &["copilot-language-server", "copilot-agent"]),
-    ("rust-build", AgentKind::Workload, &["rustc\0", "cargo\0", "rust-analyzer", "/cargo\0"]),
-    ("node-tooling", AgentKind::Workload, &["vitest", "jest", "playwright", "next-server", "vite", "tsserver", "turbo"]),
-    ("docker", AgentKind::Infra, &["dockerd", "containerd", "docker-proxy", "buildkitd"]),
-    ("browser", AgentKind::Infra, &["chrome", "chromium", "firefox"]),
+    (
+        "copilot",
+        AgentKind::Agent,
+        &["copilot-language-server", "copilot-agent"],
+    ),
+    (
+        "rust-build",
+        AgentKind::Workload,
+        &["rustc\0", "cargo\0", "rust-analyzer", "/cargo\0"],
+    ),
+    (
+        "node-tooling",
+        AgentKind::Workload,
+        &[
+            "vitest",
+            "jest",
+            "playwright",
+            "next-server",
+            "vite",
+            "tsserver",
+            "turbo",
+        ],
+    ),
+    (
+        "docker",
+        AgentKind::Infra,
+        &["dockerd", "containerd", "docker-proxy", "buildkitd"],
+    ),
+    (
+        "browser",
+        AgentKind::Infra,
+        &["chrome", "chromium", "firefox"],
+    ),
 ];
 
 /// `comm` is the kernel short name; `cmd` the argv joined by NUL.
@@ -71,10 +112,30 @@ mod tests {
     }
     #[test]
     fn classifies_agents_and_workloads() {
-        assert_eq!(classify("claude", &s(&["/home/u/.local/bin/claude"])).unwrap().0, "claude-code");
-        assert_eq!(classify("cargo", &s(&["cargo", "mutants", "--jobs", "4"])).unwrap().0, "cargo-mutants");
-        assert_eq!(classify("node", &s(&["node", "node_modules/.bin/stryker", "run"])).unwrap().0, "stryker");
-        assert_eq!(classify("rustc", &s(&["rustc", "--crate-name", "x"])).unwrap().0, "rust-build");
+        assert_eq!(
+            classify("claude", &s(&["/home/u/.local/bin/claude"]))
+                .unwrap()
+                .0,
+            "claude-code"
+        );
+        assert_eq!(
+            classify("cargo", &s(&["cargo", "mutants", "--jobs", "4"]))
+                .unwrap()
+                .0,
+            "cargo-mutants"
+        );
+        assert_eq!(
+            classify("node", &s(&["node", "node_modules/.bin/stryker", "run"]))
+                .unwrap()
+                .0,
+            "stryker"
+        );
+        assert_eq!(
+            classify("rustc", &s(&["rustc", "--crate-name", "x"]))
+                .unwrap()
+                .0,
+            "rust-build"
+        );
         assert!(classify("bash", &s(&["bash"])).is_none());
     }
 }

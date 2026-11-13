@@ -94,8 +94,15 @@ impl Ctx {
 
 pub fn walk(root: &Path, opts: WalkOptions) -> DirNode {
     let dev = fs::symlink_metadata(root).map(|m| m.dev()).unwrap_or(0);
-    let ctx = Ctx { opts, dev, seen: (0..64).map(|_| Mutex::new(HashSet::new())).collect() };
-    let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| root.display().to_string());
+    let ctx = Ctx {
+        opts,
+        dev,
+        seen: (0..64).map(|_| Mutex::new(HashSet::new())).collect(),
+    };
+    let name = root
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| root.display().to_string());
     let mut node = walk_dir(&ctx, root, 0);
     node.name = name;
     node
@@ -193,9 +200,10 @@ fn walk_dir(ctx: &Ctx, dir: &Path, depth: usize) -> DirNode {
             node.other_bytes += child.bytes;
         }
     }
-    node.children.sort_unstable_by(|a, b| b.bytes.cmp(&a.bytes));
+    node.children
+        .sort_unstable_by_key(|c| std::cmp::Reverse(c.bytes));
     if keep && ctx.opts.top_files > 0 {
-        files.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+        files.sort_unstable_by_key(|f| std::cmp::Reverse(f.1));
         files.truncate(ctx.opts.top_files);
         node.top_files = files;
     }
@@ -214,7 +222,12 @@ mod tests {
         fs::write(a.join("deep/big.bin"), vec![7u8; 256 * 1024]).unwrap();
         fs::write(a.join("deep/linked.bin"), vec![7u8; 8 * 1024]).unwrap();
         fs::hard_link(a.join("deep/linked.bin"), t.path().join("link.bin")).unwrap();
-        let opts = WalkOptions { keep_depth: 3, min_keep: 0, top_files: 4, ..Default::default() };
+        let opts = WalkOptions {
+            keep_depth: 3,
+            min_keep: 0,
+            top_files: 4,
+            ..Default::default()
+        };
         let n = walk(t.path(), opts);
         assert_eq!(n.files, 2, "hardlink counted once");
         assert!(n.bytes >= 256 * 1024);

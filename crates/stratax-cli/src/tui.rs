@@ -8,7 +8,10 @@ use ratatui::{
     style::{Color, Modifier, Style, Stylize},
     symbols,
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Gauge, Paragraph, Row, Sparkline, Table, TableState, Wrap},
+    widgets::{
+        Block, BorderType, Borders, Clear, Gauge, Paragraph, Row, Sparkline, Table, TableState,
+        Wrap,
+    },
     DefaultTerminal, Frame,
 };
 use std::collections::{HashSet, VecDeque};
@@ -86,7 +89,10 @@ enum Msg {
 enum Modal {
     None,
     Detail(String),
-    Confirm { outcomes: Vec<Outcome>, ids: Vec<String> },
+    Confirm {
+        outcomes: Vec<Outcome>,
+        ids: Vec<String>,
+    },
     Done(Vec<Outcome>),
     Kill(u32, String),
     Help,
@@ -201,7 +207,7 @@ impl App {
                     }
                     Msg::Resources(s) => {
                         push(&mut self.cpu_hist, s.cpu_total.round() as u64);
-                        push(&mut self.mem_hist, (s.mem_used * 100 / s.mem_total.max(1)) as u64);
+                        push(&mut self.mem_hist, s.mem_used * 100 / s.mem_total.max(1));
                         self.res = Some(*s);
                     }
                     Msg::Tree(t) => {
@@ -236,7 +242,10 @@ impl App {
         self.scanning = Some((p.clone(), Instant::now()));
         let tx = self.tx.clone();
         std::thread::spawn(move || {
-            let r = scan::scan(&scan::ScanOptions { progress: p, ..Default::default() });
+            let r = scan::scan(&scan::ScanOptions {
+                progress: p,
+                ..Default::default()
+            });
             let _ = tx.send(Msg::Report(Box::new(r)));
         });
     }
@@ -268,21 +277,37 @@ impl App {
     }
 
     fn start_advice(&mut self) {
-        let Some(r) = self.report.clone() else { return self.toast("Scan first") };
+        let Some(r) = self.report.clone() else {
+            return self.toast("Scan first");
+        };
         self.advising = Some(Instant::now());
         let tx = self.tx.clone();
         let mut cfg = AdvisorConfig::load();
         if cfg.provider != self.provider {
-            cfg = if self.provider == Provider::OpenAiCompat { AdvisorConfig::agnes() } else { AdvisorConfig { provider: self.provider.clone(), ..Default::default() } };
+            cfg = if self.provider == Provider::OpenAiCompat {
+                AdvisorConfig::agnes()
+            } else {
+                AdvisorConfig {
+                    provider: self.provider.clone(),
+                    ..Default::default()
+                }
+            };
         }
         std::thread::spawn(move || {
-            let _ = tx.send(Msg::Advice(advisor::advise(&r, &cfg).map_err(|e| e.to_string())));
+            let _ = tx.send(Msg::Advice(
+                advisor::advise(&r, &cfg).map_err(|e| e.to_string()),
+            ));
         });
     }
 
     fn start_clean(&mut self, ids: Vec<String>, dry: bool) {
         let Some(r) = &self.report else { return };
-        let pick: Vec<Finding> = r.findings.iter().filter(|f| ids.contains(&f.id)).cloned().collect();
+        let pick: Vec<Finding> = r
+            .findings
+            .iter()
+            .filter(|f| ids.contains(&f.id))
+            .cloned()
+            .collect();
         if pick.is_empty() {
             return self.toast("Nothing selected — space toggles, p selects recommended");
         }
@@ -299,7 +324,12 @@ impl App {
 
     fn preselect_from_report(&mut self) {
         if let Some(r) = &self.report {
-            self.selected = r.findings.iter().filter(|f| f.preselected).map(|f| f.id.clone()).collect();
+            self.selected = r
+                .findings
+                .iter()
+                .filter(|f| f.preselected)
+                .map(|f| f.id.clone())
+                .collect();
         }
     }
 
@@ -318,11 +348,20 @@ impl App {
             .collect();
         rows.sort_by(|&a, &b| {
             let (fa, fb) = (&r.findings[a], &r.findings[b]);
-            (fa.category.label(), std::cmp::Reverse(fa.bytes)).cmp(&(fb.category.label(), std::cmp::Reverse(fb.bytes)))
+            (fa.category.label(), std::cmp::Reverse(fa.bytes))
+                .cmp(&(fb.category.label(), std::cmp::Reverse(fb.bytes)))
         });
         // group order: biggest category first
         let order: Vec<Category> = r.totals.iter().map(|t| t.category).collect();
-        rows.sort_by_key(|&i| (order.iter().position(|c| *c == r.findings[i].category).unwrap_or(99), std::cmp::Reverse(r.findings[i].bytes)));
+        rows.sort_by_key(|&i| {
+            (
+                order
+                    .iter()
+                    .position(|c| *c == r.findings[i].category)
+                    .unwrap_or(99),
+                std::cmp::Reverse(r.findings[i].bytes),
+            )
+        });
         self.rows = rows;
     }
 
@@ -396,7 +435,12 @@ impl App {
                     }
                     KeyCode::Char('s') => {
                         if let Some(Ok(a)) = &self.advice {
-                            self.selected = a.recommendations.iter().filter(|r| r.verdict == "reclaim").map(|r| r.id.clone()).collect();
+                            self.selected = a
+                                .recommendations
+                                .iter()
+                                .filter(|r| r.verdict == "reclaim")
+                                .map(|r| r.id.clone())
+                                .collect();
                             self.switch(Tab::Findings);
                             self.toast("Selected the advisor's reclaim picks");
                         }
@@ -422,17 +466,32 @@ impl App {
     fn key_findings(&mut self, code: KeyCode) {
         let n = self.rows.len();
         let cur = self.fstate.selected().unwrap_or(0);
-        let cur_id = || self.report.as_ref().and_then(|r| self.rows.get(cur).map(|&i| r.findings[i].id.clone()));
+        let cur_id = || {
+            self.report
+                .as_ref()
+                .and_then(|r| self.rows.get(cur).map(|&i| r.findings[i].id.clone()))
+        };
         match code {
-            KeyCode::Down | KeyCode::Char('j') => self.fstate.select(Some((cur + 1).min(n.saturating_sub(1)))),
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.fstate.select(Some((cur + 1).min(n.saturating_sub(1))))
+            }
             KeyCode::Up | KeyCode::Char('k') => self.fstate.select(Some(cur.saturating_sub(1))),
-            KeyCode::PageDown => self.fstate.select(Some((cur + 15).min(n.saturating_sub(1)))),
+            KeyCode::PageDown => self
+                .fstate
+                .select(Some((cur + 15).min(n.saturating_sub(1)))),
             KeyCode::PageUp => self.fstate.select(Some(cur.saturating_sub(15))),
             KeyCode::Home | KeyCode::Char('g') => self.fstate.select(Some(0)),
             KeyCode::End | KeyCode::Char('G') => self.fstate.select(Some(n.saturating_sub(1))),
             KeyCode::Char(' ') => {
                 if let Some(id) = cur_id() {
-                    let f = self.report.as_ref().unwrap().findings.iter().find(|f| f.id == id).unwrap();
+                    let f = self
+                        .report
+                        .as_ref()
+                        .unwrap()
+                        .findings
+                        .iter()
+                        .find(|f| f.id == id)
+                        .unwrap();
                     if f.protected.is_some() {
                         return self.toast("Protected — see details (enter)");
                     }
@@ -445,7 +504,9 @@ impl App {
             KeyCode::Char('p') => self.preselect_from_report(),
             KeyCode::Char('x') => self.selected.clear(),
             KeyCode::Char('/') => self.filtering = true,
-            KeyCode::Char('c') | KeyCode::Char('d') => self.start_clean(self.selected.iter().cloned().collect(), true),
+            KeyCode::Char('c') | KeyCode::Char('d') => {
+                self.start_clean(self.selected.iter().cloned().collect(), true)
+            }
             KeyCode::Enter => {
                 if let Some(id) = cur_id() {
                     self.modal = Modal::Detail(id);
@@ -457,11 +518,15 @@ impl App {
 
     fn sorted_procs(&self) -> Vec<&stratax_core::resources::ProcInfo> {
         let Some(s) = &self.res else { return vec![] };
-        let mut v: Vec<_> = s.processes.iter().filter(|p| !self.agents_only || p.agent.is_some()).collect();
+        let mut v: Vec<_> = s
+            .processes
+            .iter()
+            .filter(|p| !self.agents_only || p.agent.is_some())
+            .collect();
         match self.psort {
-            'm' => v.sort_by(|a, b| b.memory.cmp(&a.memory)),
-            't' => v.sort_by(|a, b| b.threads.cmp(&a.threads)),
-            'i' => v.sort_by(|a, b| (b.disk_read + b.disk_write).cmp(&(a.disk_read + a.disk_write))),
+            'm' => v.sort_by_key(|p| std::cmp::Reverse(p.memory)),
+            't' => v.sort_by_key(|p| std::cmp::Reverse(p.threads)),
+            'i' => v.sort_by_key(|p| std::cmp::Reverse(p.disk_read + p.disk_write)),
             _ => v.sort_by(|a, b| b.cpu.total_cmp(&a.cpu)),
         }
         v
@@ -471,7 +536,9 @@ impl App {
         let n = self.sorted_procs().len();
         let cur = self.pstate.selected().unwrap_or(0);
         match code {
-            KeyCode::Down | KeyCode::Char('j') => self.pstate.select(Some((cur + 1).min(n.saturating_sub(1)))),
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.pstate.select(Some((cur + 1).min(n.saturating_sub(1))))
+            }
             KeyCode::Up | KeyCode::Char('k') => self.pstate.select(Some(cur.saturating_sub(1))),
             KeyCode::Char(c @ ('c' | 'm' | 't' | 'i')) => self.psort = c,
             KeyCode::Char('a') => self.agents_only = !self.agents_only,
@@ -486,7 +553,10 @@ impl App {
 
     fn kill(&mut self, pid: u32, force: bool, name: &str) {
         match stratax_core::resources::signal(pid, force) {
-            Ok(()) => self.toast(&format!("Sent {} to {name} ({pid})", if force { "SIGKILL" } else { "SIGTERM" })),
+            Ok(()) => self.toast(&format!(
+                "Sent {} to {name} ({pid})",
+                if force { "SIGKILL" } else { "SIGTERM" }
+            )),
             Err(e) => self.toast(&e.to_string()),
         }
     }
@@ -503,10 +573,16 @@ impl App {
         let n = self.tree_node().map(|n| n.children.len()).unwrap_or(0);
         let cur = self.tstate.selected().unwrap_or(0);
         match code {
-            KeyCode::Down | KeyCode::Char('j') => self.tstate.select(Some((cur + 1).min(n.saturating_sub(1)))),
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.tstate.select(Some((cur + 1).min(n.saturating_sub(1))))
+            }
             KeyCode::Up | KeyCode::Char('k') => self.tstate.select(Some(cur.saturating_sub(1))),
             KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
-                if let Some(c) = self.tree_node().and_then(|t| t.children.get(cur)).map(|c| c.name.clone()) {
+                if let Some(c) = self
+                    .tree_node()
+                    .and_then(|t| t.children.get(cur))
+                    .map(|c| c.name.clone())
+                {
                     self.tree_path.push(c);
                     self.tstate.select(Some(0));
                 }
@@ -528,9 +604,17 @@ impl App {
     fn draw(&mut self, f: &mut Frame) {
         let area = f.area();
         f.render_widget(Block::new().style(Style::new().bg(BG).fg(TEXT)), area);
-        let [head, body, foot] = Layout::vertical([Constraint::Length(3), Constraint::Min(5), Constraint::Length(1)]).areas(area);
+        let [head, body, foot] = Layout::vertical([
+            Constraint::Length(3),
+            Constraint::Min(5),
+            Constraint::Length(1),
+        ])
+        .areas(area);
         self.draw_header(f, head);
-        let body = body.inner(ratatui::layout::Margin { horizontal: 1, vertical: 0 });
+        let body = body.inner(ratatui::layout::Margin {
+            horizontal: 1,
+            vertical: 0,
+        });
         match self.tab {
             Tab::Overview => self.draw_overview(f, body),
             Tab::Findings => self.draw_findings(f, body),
@@ -544,54 +628,143 @@ impl App {
     }
 
     fn draw_header(&self, f: &mut Frame, a: Rect) {
-        let block = Block::new().borders(Borders::BOTTOM).border_style(Style::new().fg(LINE));
+        let block = Block::new()
+            .borders(Borders::BOTTOM)
+            .border_style(Style::new().fg(LINE));
         let inner = block.inner(a);
         f.render_widget(block, a);
-        let [brand, tabs, status] = Layout::horizontal([Constraint::Length(24), Constraint::Min(10), Constraint::Length(44)]).areas(inner);
-        let host = self.report.as_ref().map(|r| r.host.clone()).unwrap_or_default();
+        let [brand, tabs, status] = Layout::horizontal([
+            Constraint::Length(24),
+            Constraint::Min(10),
+            Constraint::Length(44),
+        ])
+        .areas(inner);
+        let host = self
+            .report
+            .as_ref()
+            .map(|r| r.host.clone())
+            .unwrap_or_default();
         f.render_widget(
-            Paragraph::new(Line::from(vec![" ◆ ".fg(ACCENT).bold(), "STRATAX".bold().fg(TEXT), format!("  {host}").fg(DIM)])),
-            Rect { y: brand.y + 1, height: 1, ..brand },
+            Paragraph::new(Line::from(vec![
+                " ◆ ".fg(ACCENT).bold(),
+                "STRATAX".bold().fg(TEXT),
+                format!("  {host}").fg(DIM),
+            ])),
+            Rect {
+                y: brand.y + 1,
+                height: 1,
+                ..brand
+            },
         );
         let mut spans = vec![];
         for (i, (t, name)) in TABS.iter().enumerate() {
             let on = *t == self.tab;
-            spans.push(Span::styled(format!(" {} ", i + 1), Style::new().fg(if on { BG } else { DIM }).bg(if on { ACCENT } else { BG })));
-            spans.push(Span::styled(format!(" {name}  "), if on { Style::new().fg(TEXT).bold() } else { Style::new().fg(DIM) }));
+            spans.push(Span::styled(
+                format!(" {} ", i + 1),
+                Style::new()
+                    .fg(if on { BG } else { DIM })
+                    .bg(if on { ACCENT } else { BG }),
+            ));
+            spans.push(Span::styled(
+                format!(" {name}  "),
+                if on {
+                    Style::new().fg(TEXT).bold()
+                } else {
+                    Style::new().fg(DIM)
+                },
+            ));
         }
-        f.render_widget(Paragraph::new(Line::from(spans)), Rect { y: tabs.y + 1, height: 1, ..tabs });
+        f.render_widget(
+            Paragraph::new(Line::from(spans)),
+            Rect {
+                y: tabs.y + 1,
+                height: 1,
+                ..tabs
+            },
+        );
         let st = if let Some((p, t0)) = &self.scanning {
-            let spin = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"][(t0.elapsed().as_millis() / 90) as usize % 10];
+            let spin = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+                [(t0.elapsed().as_millis() / 90) as usize % 10];
             Line::from(vec![
                 format!("{spin} scanning ").fg(ACCENT),
-                format!("{} files · {} · {:.0}s", p.files.load(Ordering::Relaxed), human_bytes(p.bytes.load(Ordering::Relaxed)), t0.elapsed().as_secs_f32()).fg(DIM),
+                format!(
+                    "{} files · {} · {:.0}s",
+                    p.files.load(Ordering::Relaxed),
+                    human_bytes(p.bytes.load(Ordering::Relaxed)),
+                    t0.elapsed().as_secs_f32()
+                )
+                .fg(DIM),
             ])
         } else if let Some(r) = &self.report {
-            Line::from(vec!["● ".fg(ACCENT), format!("scanned {} · {:.1}s · {}", ago(r.generated_at), r.duration_ms as f64 / 1000.0, r.scan_status).fg(DIM)])
+            Line::from(vec![
+                "● ".fg(ACCENT),
+                format!(
+                    "scanned {} · {:.1}s · {}",
+                    ago(r.generated_at),
+                    r.duration_ms as f64 / 1000.0,
+                    r.scan_status
+                )
+                .fg(DIM),
+            ])
         } else {
             Line::from("no scan yet".fg(DIM))
         };
-        f.render_widget(Paragraph::new(st).right_aligned(), Rect { y: status.y + 1, height: 1, width: status.width.saturating_sub(1), ..status });
+        f.render_widget(
+            Paragraph::new(st).right_aligned(),
+            Rect {
+                y: status.y + 1,
+                height: 1,
+                width: status.width.saturating_sub(1),
+                ..status
+            },
+        );
     }
 
     fn draw_footer(&self, f: &mut Frame, a: Rect) {
         if let Some((t, at)) = &self.toast {
             if at.elapsed() < Duration::from_secs(4) {
-                f.render_widget(Paragraph::new(Line::from(vec![" ▸ ".fg(ACCENT), t.clone().fg(TEXT)])).bg(PANEL), a);
+                f.render_widget(
+                    Paragraph::new(Line::from(vec![" ▸ ".fg(ACCENT), t.clone().fg(TEXT)]))
+                        .bg(PANEL),
+                    a,
+                );
                 return;
             }
         }
         let keys: &[(&str, &str)] = match self.tab {
-            Tab::Findings => &[("␣", "toggle"), ("p", "recommended"), ("x", "clear"), ("/", "filter"), ("⏎", "details"), ("c", "preview clean")],
-            Tab::Resources => &[("c/m/t/i", "sort"), ("a", "agents only"), ("K", "kill"), ("↑↓", "move")],
+            Tab::Findings => &[
+                ("␣", "toggle"),
+                ("p", "recommended"),
+                ("x", "clear"),
+                ("/", "filter"),
+                ("⏎", "details"),
+                ("c", "preview clean"),
+            ],
+            Tab::Resources => &[
+                ("c/m/t/i", "sort"),
+                ("a", "agents only"),
+                ("K", "kill"),
+                ("↑↓", "move"),
+            ],
             Tab::Explorer => &[("⏎/→", "open"), ("⌫/←", "up"), ("R", "rescan")],
             Tab::Advisor => &[("a", "ask"), ("p", "provider"), ("s", "select picks")],
             Tab::Overview => &[("c", "preview clean of recommended")],
             Tab::Agents => &[],
         };
         let mut spans = vec![];
-        for (k, d) in keys.iter().chain([("1-6", "views"), ("r", "rescan"), ("?", "help"), ("q", "quit")].iter()) {
-            spans.push(Span::styled(format!(" {k} "), Style::new().fg(TEXT).bg(LINE)));
+        for (k, d) in keys.iter().chain(
+            [
+                ("1-6", "views"),
+                ("r", "rescan"),
+                ("?", "help"),
+                ("q", "quit"),
+            ]
+            .iter(),
+        ) {
+            spans.push(Span::styled(
+                format!(" {k} "),
+                Style::new().fg(TEXT).bg(LINE),
+            ));
             spans.push(Span::styled(format!(" {d}  "), Style::new().fg(DIM)));
         }
         f.render_widget(Paragraph::new(Line::from(spans)), a);
@@ -601,44 +774,105 @@ impl App {
         Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Style::new().fg(LINE))
-            .title(Line::from(vec![" ".into(), title.to_uppercase().fg(DIM).add_modifier(Modifier::BOLD), " ".into()]))
+            .title(Line::from(vec![
+                " ".into(),
+                title.to_uppercase().fg(DIM).add_modifier(Modifier::BOLD),
+                " ".into(),
+            ]))
             .style(Style::new().bg(PANEL))
     }
 
     fn draw_overview(&self, f: &mut Frame, a: Rect) {
         let Some(r) = &self.report else {
-            f.render_widget(Paragraph::new("Running the first scan…").fg(DIM).centered(), a);
+            f.render_widget(
+                Paragraph::new("Running the first scan…").fg(DIM).centered(),
+                a,
+            );
             return;
         };
-        let disks: Vec<_> = r.disks.iter().filter(|d| d.total > if d.mount.is_some() { 1 << 30 } else { 16 << 30 }).collect();
-        let [disk_a, mid, bottom] = Layout::vertical([Constraint::Length(disks.len() as u16 * 2 + 2), Constraint::Min(8), Constraint::Length(9)]).areas(a);
+        let disks: Vec<_> = r
+            .disks
+            .iter()
+            .filter(|d| d.total > if d.mount.is_some() { 1 << 30 } else { 16 << 30 })
+            .collect();
+        let [disk_a, mid, bottom] = Layout::vertical([
+            Constraint::Length(disks.len() as u16 * 2 + 2),
+            Constraint::Min(8),
+            Constraint::Length(9),
+        ])
+        .areas(a);
 
         // disks
         let blk = Self::panel("Disks");
         let inner = blk.inner(disk_a);
         f.render_widget(blk, disk_a);
         for (i, d) in disks.iter().enumerate() {
-            let row = Rect { y: inner.y + i as u16 * 2, height: 1, ..inner };
-            let [label, gauge, nums] = Layout::horizontal([Constraint::Length(34), Constraint::Min(10), Constraint::Length(26)]).areas(row);
+            let row = Rect {
+                y: inner.y + i as u16 * 2,
+                height: 1,
+                ..inner
+            };
+            let [label, gauge, nums] = Layout::horizontal([
+                Constraint::Length(34),
+                Constraint::Min(10),
+                Constraint::Length(26),
+            ])
+            .areas(row);
             let name = d.label.clone().unwrap_or_else(|| d.name.clone());
-            let mount = d.mount.as_ref().map(|m| m.display().to_string()).unwrap_or_else(|| "not mounted".into());
-            f.render_widget(Paragraph::new(Line::from(vec![format!(" {:<9}", d.kind()).fg(if d.rotational { AMBER } else { SKY }), format!("{name} ").bold(), mount.fg(DIM)])), label);
+            let mount = d
+                .mount
+                .as_ref()
+                .map(|m| m.display().to_string())
+                .unwrap_or_else(|| "not mounted".into());
+            f.render_widget(
+                Paragraph::new(Line::from(vec![
+                    format!(" {:<9}", d.kind()).fg(if d.rotational { AMBER } else { SKY }),
+                    format!("{name} ").bold(),
+                    mount.fg(DIM),
+                ])),
+                label,
+            );
             if d.mount.is_none() {
-                f.render_widget(Paragraph::new(" ◌ idle — mount it and move bulky data here").fg(AMBER), gauge);
+                f.render_widget(
+                    Paragraph::new(" ◌ idle — mount it and move bulky data here").fg(AMBER),
+                    gauge,
+                );
             } else {
                 let ratio = d.used_ratio();
-                let c = if ratio > 0.9 { ROSE } else if ratio > 0.8 { AMBER } else { ACCENT };
-                f.render_widget(Gauge::default().ratio(ratio.min(1.0)).gauge_style(Style::new().fg(c).bg(LINE)).label(format!("{:.0}%", ratio * 100.0)).use_unicode(true), gauge);
+                let c = if ratio > 0.9 {
+                    ROSE
+                } else if ratio > 0.8 {
+                    AMBER
+                } else {
+                    ACCENT
+                };
+                f.render_widget(
+                    Gauge::default()
+                        .ratio(ratio.min(1.0))
+                        .gauge_style(Style::new().fg(c).bg(LINE))
+                        .label(format!("{:.0}%", ratio * 100.0))
+                        .use_unicode(true),
+                    gauge,
+                );
             }
             let nums_text = match &d.mount {
-                Some(_) => format!("{} free of {} ", human_bytes(d.available), human_bytes(d.total)),
-                None => format!("{} · {} ", human_bytes(d.total), d.fs.as_deref().unwrap_or("?")),
+                Some(_) => format!(
+                    "{} free of {} ",
+                    human_bytes(d.available),
+                    human_bytes(d.total)
+                ),
+                None => format!(
+                    "{} · {} ",
+                    human_bytes(d.total),
+                    d.fs.as_deref().unwrap_or("?")
+                ),
             };
             f.render_widget(Paragraph::new(nums_text).fg(DIM).right_aligned(), nums);
         }
 
         // categories + insights
-        let [cats, ins] = Layout::horizontal([Constraint::Percentage(48), Constraint::Percentage(52)]).areas(mid);
+        let [cats, ins] =
+            Layout::horizontal([Constraint::Percentage(48), Constraint::Percentage(52)]).areas(mid);
         let blk = Self::panel("Where the space goes");
         let ci = blk.inner(cats);
         f.render_widget(blk, cats);
@@ -652,15 +886,38 @@ impl App {
                 let rec = (t.reclaimable as f64 / max as f64 * w as f64).round() as usize;
                 let bar = Line::from(vec![
                     "█".repeat(rec.min(full)).fg(cat_color(t.category)),
-                    "▒".repeat(full.saturating_sub(rec)).fg(cat_color(t.category)),
+                    "▒"
+                        .repeat(full.saturating_sub(rec))
+                        .fg(cat_color(t.category)),
                     "·".repeat(w - full.min(w)).fg(LINE),
                 ]);
-                Row::new(vec![Line::from(t.label.clone()), bar, Line::from(human_bytes(t.bytes)).right_aligned(), Line::from(human_bytes(t.reclaimable).fg(ACCENT)).right_aligned()])
+                Row::new(vec![
+                    Line::from(t.label.clone()),
+                    bar,
+                    Line::from(human_bytes(t.bytes)).right_aligned(),
+                    Line::from(human_bytes(t.reclaimable).fg(ACCENT)).right_aligned(),
+                ])
             })
             .collect();
         f.render_widget(
-            Table::new(rows, [Constraint::Length(16), Constraint::Length(22), Constraint::Length(9), Constraint::Length(10)])
-                .header(Row::new(vec![Line::from(""), Line::from("█ free-able  ▒ kept"), Line::from("SIZE").right_aligned(), Line::from("FREE-ABLE").right_aligned()]).fg(DIM)),
+            Table::new(
+                rows,
+                [
+                    Constraint::Length(16),
+                    Constraint::Length(22),
+                    Constraint::Length(9),
+                    Constraint::Length(10),
+                ],
+            )
+            .header(
+                Row::new(vec![
+                    Line::from(""),
+                    Line::from("█ free-able  ▒ kept"),
+                    Line::from("SIZE").right_aligned(),
+                    Line::from("FREE-ABLE").right_aligned(),
+                ])
+                .fg(DIM),
+            ),
             ci,
         );
 
@@ -674,40 +931,76 @@ impl App {
                 Severity::Warn => ("●", AMBER),
                 Severity::Info => ("○", SKY),
             };
-            lines.push(Line::from(vec![format!("{ic} ").fg(c), i.title.clone().bold()]));
+            lines.push(Line::from(vec![
+                format!("{ic} ").fg(c),
+                i.title.clone().bold(),
+            ]));
             lines.push(Line::from(format!("  {}", i.detail)).fg(DIM));
             lines.push(Line::raw(""));
         }
         f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), ii);
 
         // reclaim summary
-        let sel: Vec<&Finding> = r.findings.iter().filter(|f| self.selected.contains(&f.id)).collect();
+        let sel: Vec<&Finding> = r
+            .findings
+            .iter()
+            .filter(|f| self.selected.contains(&f.id))
+            .collect();
         let sel_bytes = clean::selection_bytes(&sel);
         let blk = Self::panel("Recommended now");
         let bi = blk.inner(bottom);
         f.render_widget(blk, bottom);
-        let [big, list] = Layout::horizontal([Constraint::Length(30), Constraint::Min(10)]).areas(bi);
+        let [big, list] =
+            Layout::horizontal([Constraint::Length(30), Constraint::Min(10)]).areas(bi);
         f.render_widget(
             Paragraph::new(vec![
                 Line::raw(""),
-                Line::from(human_bytes(sel_bytes)).fg(ACCENT).bold().centered(),
-                Line::from(format!("in {} items", sel.len())).fg(DIM).centered(),
+                Line::from(human_bytes(sel_bytes))
+                    .fg(ACCENT)
+                    .bold()
+                    .centered(),
+                Line::from(format!("in {} items", sel.len()))
+                    .fg(DIM)
+                    .centered(),
                 Line::raw(""),
                 Line::from(vec![" c ".fg(BG).bg(ACCENT), " preview cleanup".fg(TEXT)]).centered(),
             ]),
             big,
         );
         let mut top = sel.clone();
-        top.sort_by(|a, b| b.bytes.cmp(&a.bytes));
-        let lines: Vec<Line> = top.iter().take(bi.height as usize).map(|f| Line::from(vec![format!("{:>9}  ", human_bytes(f.bytes)).fg(TEXT), "■ ".fg(safety_color(f.safety)), f.title.clone().fg(DIM)])).collect();
+        top.sort_by_key(|f| std::cmp::Reverse(f.bytes));
+        let lines: Vec<Line> = top
+            .iter()
+            .take(bi.height as usize)
+            .map(|f| {
+                Line::from(vec![
+                    format!("{:>9}  ", human_bytes(f.bytes)).fg(TEXT),
+                    "■ ".fg(safety_color(f.safety)),
+                    f.title.clone().fg(DIM),
+                ])
+            })
+            .collect();
         f.render_widget(Paragraph::new(lines), list);
     }
 
     fn draw_findings(&mut self, f: &mut Frame, a: Rect) {
         let Some(r) = &self.report else { return };
         let [bar, table] = Layout::vertical([Constraint::Length(1), Constraint::Min(3)]).areas(a);
-        let sel_bytes = clean::selection_bytes(&r.findings.iter().filter(|f| self.selected.contains(&f.id)).collect::<Vec<_>>());
-        let filt = if self.filtering || !self.filter.is_empty() { format!("  filter: {}{}", self.filter, if self.filtering { "▏" } else { "" }) } else { String::new() };
+        let sel_bytes = clean::selection_bytes(
+            &r.findings
+                .iter()
+                .filter(|f| self.selected.contains(&f.id))
+                .collect::<Vec<_>>(),
+        );
+        let filt = if self.filtering || !self.filter.is_empty() {
+            format!(
+                "  filter: {}{}",
+                self.filter,
+                if self.filtering { "▏" } else { "" }
+            )
+        } else {
+            String::new()
+        };
         f.render_widget(
             Paragraph::new(Line::from(vec![
                 format!(" {} selected · ", self.selected.len()).fg(DIM),
@@ -739,32 +1032,61 @@ impl App {
                     "○".into()
                 };
                 let w = ((fi.bytes as f64 / max as f64).sqrt() * 12.0).round() as usize;
-                let cat = if head { fi.category.label().to_string() } else { String::new() };
+                let cat = if head {
+                    fi.category.label().to_string()
+                } else {
+                    String::new()
+                };
                 Row::new(vec![
                     Line::from(cat).fg(cat_color(fi.category)).bold(),
-                    Line::from(mark).fg(if self.selected.contains(&fi.id) { ACCENT } else { DIM }),
-                    Line::from(vec!["▍".fg(safety_color(fi.safety)), fi.title.clone().into()]),
+                    Line::from(mark).fg(if self.selected.contains(&fi.id) {
+                        ACCENT
+                    } else {
+                        DIM
+                    }),
+                    Line::from(vec![
+                        "▍".fg(safety_color(fi.safety)),
+                        fi.title.clone().into(),
+                    ]),
                     Line::from(fi.owner.clone().unwrap_or_default()).fg(VIOLET),
-                    Line::from(fi.age_days(now).map(|d| idle(d)).unwrap_or_default()).fg(DIM),
+                    Line::from(fi.age_days(now).map(idle).unwrap_or_default()).fg(DIM),
                     Line::from(vec!["━".repeat(w.max(1)).fg(cat_color(fi.category))]),
                     Line::from(human_bytes(fi.bytes)).right_aligned(),
                 ])
             })
             .collect();
-        let t = Table::new(rows, [Constraint::Length(16), Constraint::Length(3), Constraint::Min(30), Constraint::Length(14), Constraint::Length(10), Constraint::Length(13), Constraint::Length(10)])
-            .header(Row::new(vec!["CATEGORY", "", "ITEM", "OWNER", "IDLE", "", "SIZE"]).fg(DIM).bottom_margin(0))
-            .row_highlight_style(Style::new().bg(LINE))
-            .block(Self::panel("Findings"));
+        let t = Table::new(
+            rows,
+            [
+                Constraint::Length(16),
+                Constraint::Length(3),
+                Constraint::Min(30),
+                Constraint::Length(14),
+                Constraint::Length(10),
+                Constraint::Length(13),
+                Constraint::Length(10),
+            ],
+        )
+        .header(
+            Row::new(vec!["CATEGORY", "", "ITEM", "OWNER", "IDLE", "", "SIZE"])
+                .fg(DIM)
+                .bottom_margin(0),
+        )
+        .row_highlight_style(Style::new().bg(LINE))
+        .block(Self::panel("Findings"));
         f.render_stateful_widget(t, table, &mut self.fstate);
     }
 
     fn draw_agents(&self, f: &mut Frame, a: Rect) {
         let Some(r) = &self.report else { return };
-        let [top, bottom] = Layout::vertical([Constraint::Percentage(55), Constraint::Percentage(45)]).areas(a);
+        let [top, bottom] =
+            Layout::vertical([Constraint::Percentage(55), Constraint::Percentage(45)]).areas(a);
         // footprint by owner
         let mut by: std::collections::BTreeMap<String, (u64, usize, u64)> = Default::default();
         for fi in &r.findings {
-            let e = by.entry(fi.owner.clone().unwrap_or_else(|| "other".into())).or_default();
+            let e = by
+                .entry(fi.owner.clone().unwrap_or_else(|| "other".into()))
+                .or_default();
             e.0 += fi.bytes;
             e.1 += 1;
             if fi.protected.is_none() && fi.safety != Safety::Review {
@@ -772,15 +1094,26 @@ impl App {
             }
         }
         let mut v: Vec<_> = by.into_iter().collect();
-        v.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
+        v.sort_by_key(|e| std::cmp::Reverse(e.1 .0));
         let max = v.first().map(|x| x.1 .0).unwrap_or(1).max(1);
         let rows: Vec<Row> = v
             .iter()
             .map(|(o, (b, n, rec))| {
                 let w = (*b as f64 / max as f64 * 30.0).round() as usize;
-                let agentish = ["claude-code", "claude-desktop", "codex", "cursor", "cargo-mutants", "stryker", "mutmut"].contains(&o.as_str());
+                let agentish = [
+                    "claude-code",
+                    "claude-desktop",
+                    "codex",
+                    "cursor",
+                    "cargo-mutants",
+                    "stryker",
+                    "mutmut",
+                ]
+                .contains(&o.as_str());
                 Row::new(vec![
-                    Line::from(o.clone()).fg(if agentish { VIOLET } else { TEXT }).bold(),
+                    Line::from(o.clone())
+                        .fg(if agentish { VIOLET } else { TEXT })
+                        .bold(),
                     Line::from("█".repeat(w.max(1))).fg(if agentish { VIOLET } else { SKY }),
                     Line::from(human_bytes(*b)).right_aligned(),
                     Line::from(human_bytes(*rec)).fg(ACCENT).right_aligned(),
@@ -789,13 +1122,26 @@ impl App {
             })
             .collect();
         f.render_widget(
-            Table::new(rows, [Constraint::Length(16), Constraint::Length(31), Constraint::Length(10), Constraint::Length(10), Constraint::Length(6)])
-                .header(Row::new(vec!["WHO MADE IT", "", "SIZE", "FREE-ABLE", "ITEMS"]).fg(DIM))
-                .block(Self::panel("Footprint by agent / tool")),
+            Table::new(
+                rows,
+                [
+                    Constraint::Length(16),
+                    Constraint::Length(31),
+                    Constraint::Length(10),
+                    Constraint::Length(10),
+                    Constraint::Length(6),
+                ],
+            )
+            .header(Row::new(vec!["WHO MADE IT", "", "SIZE", "FREE-ABLE", "ITEMS"]).fg(DIM))
+            .block(Self::panel("Footprint by agent / tool")),
             top,
         );
         // live
-        let live = self.res.as_ref().map(|s| s.agents.clone()).unwrap_or_else(|| r.agents.clone());
+        let live = self
+            .res
+            .as_ref()
+            .map(|s| s.agents.clone())
+            .unwrap_or_else(|| r.agents.clone());
         let rows: Vec<Row> = live
             .iter()
             .map(|g| {
@@ -805,14 +1151,42 @@ impl App {
                     Line::from(format!("{}", g.threads)).right_aligned(),
                     Line::from(format!("{:.1}%", g.cpu)).right_aligned(),
                     Line::from(human_bytes(g.memory)).right_aligned(),
-                    Line::from(g.cwds.iter().take(3).map(|c| short_home(c)).collect::<Vec<_>>().join("  ")).fg(DIM),
+                    Line::from(
+                        g.cwds
+                            .iter()
+                            .take(3)
+                            .map(|c| short_home(c))
+                            .collect::<Vec<_>>()
+                            .join("  "),
+                    )
+                    .fg(DIM),
                 ])
             })
             .collect();
         f.render_widget(
-            Table::new(rows, [Constraint::Length(16), Constraint::Length(6), Constraint::Length(8), Constraint::Length(8), Constraint::Length(10), Constraint::Min(10)])
-                .header(Row::new(vec!["RUNNING NOW", "PROCS", "THREADS", "CPU", "MEMORY", "WORKING IN"]).fg(DIM))
-                .block(Self::panel("Live agent activity")),
+            Table::new(
+                rows,
+                [
+                    Constraint::Length(16),
+                    Constraint::Length(6),
+                    Constraint::Length(8),
+                    Constraint::Length(8),
+                    Constraint::Length(10),
+                    Constraint::Min(10),
+                ],
+            )
+            .header(
+                Row::new(vec![
+                    "RUNNING NOW",
+                    "PROCS",
+                    "THREADS",
+                    "CPU",
+                    "MEMORY",
+                    "WORKING IN",
+                ])
+                .fg(DIM),
+            )
+            .block(Self::panel("Live agent activity")),
             bottom,
         );
     }
@@ -823,49 +1197,116 @@ impl App {
             return;
         };
         let [top, procs] = Layout::vertical([Constraint::Length(11), Constraint::Min(5)]).areas(a);
-        let [cpu, mem] = Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)]).areas(top);
+        let [cpu, mem] =
+            Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)]).areas(top);
 
         let blk = Self::panel(&format!("CPU · {}", s.cpu_brand));
         let ci = blk.inner(cpu);
         f.render_widget(blk, cpu);
-        let [line, spark, cores] = Layout::vertical([Constraint::Length(1), Constraint::Length(4), Constraint::Min(2)]).areas(ci);
+        let [line, spark, cores] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(4),
+            Constraint::Min(2),
+        ])
+        .areas(ci);
         f.render_widget(
             Paragraph::new(Line::from(vec![
                 format!(" {:>5.1}% ", s.cpu_total).fg(ACCENT).bold(),
-                format!("load {:.2} {:.2} {:.2} · {} procs · {} threads · {} zombies · up {}", s.load[0], s.load[1], s.load[2], s.process_count, s.thread_count, s.zombies, uptime(s.uptime)).fg(DIM),
+                format!(
+                    "load {:.2} {:.2} {:.2} · {} procs · {} threads · {} zombies · up {}",
+                    s.load[0],
+                    s.load[1],
+                    s.load[2],
+                    s.process_count,
+                    s.thread_count,
+                    s.zombies,
+                    uptime(s.uptime)
+                )
+                .fg(DIM),
             ])),
             line,
         );
         let hist: Vec<u64> = self.cpu_hist.iter().copied().collect();
-        f.render_widget(Sparkline::default().data(&hist).max(100).style(Style::new().fg(ACCENT)).bar_set(symbols::bar::NINE_LEVELS), spark);
+        f.render_widget(
+            Sparkline::default()
+                .data(&hist)
+                .max(100)
+                .style(Style::new().fg(ACCENT))
+                .bar_set(symbols::bar::NINE_LEVELS),
+            spark,
+        );
         let per = (cores.width as usize / s.cpu_cores.len().max(1)).clamp(3, 8);
         let spans: Vec<Span> = s
             .cpu_cores
             .iter()
             .map(|c| {
-                let lvl = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"][((c / 100.0) * 7.0).round().clamp(0.0, 7.0) as usize];
-                let col = if *c > 85.0 { ROSE } else if *c > 50.0 { AMBER } else { ACCENT };
-                Span::styled(format!("{:^w$}", lvl.repeat(per.saturating_sub(1)), w = per), Style::new().fg(col))
+                let lvl = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
+                    [((c / 100.0) * 7.0).round().clamp(0.0, 7.0) as usize];
+                let col = if *c > 85.0 {
+                    ROSE
+                } else if *c > 50.0 {
+                    AMBER
+                } else {
+                    ACCENT
+                };
+                Span::styled(
+                    format!("{:^w$}", lvl.repeat(per.saturating_sub(1)), w = per),
+                    Style::new().fg(col),
+                )
             })
             .collect();
-        f.render_widget(Paragraph::new(vec![Line::from(spans), Line::from(" per core").fg(DIM)]), cores);
+        f.render_widget(
+            Paragraph::new(vec![Line::from(spans), Line::from(" per core").fg(DIM)]),
+            cores,
+        );
 
         let blk = Self::panel("Memory");
         let mi = blk.inner(mem);
         f.render_widget(blk, mem);
-        let [g1, g2, sp] = Layout::vertical([Constraint::Length(2), Constraint::Length(2), Constraint::Min(2)]).areas(mi);
+        let [g1, g2, sp] = Layout::vertical([
+            Constraint::Length(2),
+            Constraint::Length(2),
+            Constraint::Min(2),
+        ])
+        .areas(mi);
         let mr = s.mem_used as f64 / s.mem_total.max(1) as f64;
         f.render_widget(
-            Gauge::default().ratio(mr.min(1.0)).label(format!("RAM {} / {}", human_bytes(s.mem_used), human_bytes(s.mem_total))).gauge_style(Style::new().fg(if mr > 0.9 { ROSE } else { VIOLET }).bg(LINE)).use_unicode(true),
+            Gauge::default()
+                .ratio(mr.min(1.0))
+                .label(format!(
+                    "RAM {} / {}",
+                    human_bytes(s.mem_used),
+                    human_bytes(s.mem_total)
+                ))
+                .gauge_style(
+                    Style::new()
+                        .fg(if mr > 0.9 { ROSE } else { VIOLET })
+                        .bg(LINE),
+                )
+                .use_unicode(true),
             Rect { height: 1, ..g1 },
         );
         let sr = s.swap_used as f64 / s.swap_total.max(1) as f64;
         f.render_widget(
-            Gauge::default().ratio(sr.min(1.0)).label(format!("swap {} / {}", human_bytes(s.swap_used), human_bytes(s.swap_total))).gauge_style(Style::new().fg(AMBER).bg(LINE)).use_unicode(true),
+            Gauge::default()
+                .ratio(sr.min(1.0))
+                .label(format!(
+                    "swap {} / {}",
+                    human_bytes(s.swap_used),
+                    human_bytes(s.swap_total)
+                ))
+                .gauge_style(Style::new().fg(AMBER).bg(LINE))
+                .use_unicode(true),
             Rect { height: 1, ..g2 },
         );
         let mh: Vec<u64> = self.mem_hist.iter().copied().collect();
-        f.render_widget(Sparkline::default().data(&mh).max(100).style(Style::new().fg(VIOLET)), sp);
+        f.render_widget(
+            Sparkline::default()
+                .data(&mh)
+                .max(100)
+                .style(Style::new().fg(VIOLET)),
+            sp,
+        );
 
         let list = self.sorted_procs();
         let rows: Vec<Row> = list
@@ -876,21 +1317,62 @@ impl App {
                     Line::from(format!("{}", p.pid)).fg(DIM),
                     Line::from(p.name.clone()).bold(),
                     Line::from(p.agent.clone().unwrap_or_default()).fg(VIOLET),
-                    Line::from(format!("{:.1}", p.cpu)).fg(if p.cpu > 50.0 { AMBER } else { TEXT }).right_aligned(),
+                    Line::from(format!("{:.1}", p.cpu))
+                        .fg(if p.cpu > 50.0 { AMBER } else { TEXT })
+                        .right_aligned(),
                     Line::from(human_bytes(p.memory)).right_aligned(),
                     Line::from(format!("{}", p.threads)).right_aligned(),
-                    Line::from(human_bytes(p.disk_read + p.disk_write)).fg(DIM).right_aligned(),
+                    Line::from(human_bytes(p.disk_read + p.disk_write))
+                        .fg(DIM)
+                        .right_aligned(),
                     Line::from(p.cmd.chars().take(120).collect::<String>()).fg(DIM),
                 ])
             })
             .collect();
-        let hdr = |k: char, s: &str| if self.psort == k { format!("{s}▾") } else { s.to_string() };
-        let title = format!("Processes{}", if self.agents_only { " · agents & workloads" } else { "" });
+        let hdr = |k: char, s: &str| {
+            if self.psort == k {
+                format!("{s}▾")
+            } else {
+                s.to_string()
+            }
+        };
+        let title = format!(
+            "Processes{}",
+            if self.agents_only {
+                " · agents & workloads"
+            } else {
+                ""
+            }
+        );
         f.render_stateful_widget(
-            Table::new(rows, [Constraint::Length(8), Constraint::Length(18), Constraint::Length(14), Constraint::Length(7), Constraint::Length(10), Constraint::Length(8), Constraint::Length(10), Constraint::Min(10)])
-                .header(Row::new(vec!["PID".into(), "NAME".into(), "AGENT".into(), hdr('c', "CPU%"), hdr('m', "MEM"), hdr('t', "THR"), hdr('i', "I/O"), "COMMAND".into()]).fg(DIM))
-                .row_highlight_style(Style::new().bg(LINE))
-                .block(Self::panel(&title)),
+            Table::new(
+                rows,
+                [
+                    Constraint::Length(8),
+                    Constraint::Length(18),
+                    Constraint::Length(14),
+                    Constraint::Length(7),
+                    Constraint::Length(10),
+                    Constraint::Length(8),
+                    Constraint::Length(10),
+                    Constraint::Min(10),
+                ],
+            )
+            .header(
+                Row::new(vec![
+                    "PID".into(),
+                    "NAME".into(),
+                    "AGENT".into(),
+                    hdr('c', "CPU%"),
+                    hdr('m', "MEM"),
+                    hdr('t', "THR"),
+                    hdr('i', "I/O"),
+                    "COMMAND".into(),
+                ])
+                .fg(DIM),
+            )
+            .row_highlight_style(Style::new().bg(LINE))
+            .block(Self::panel(&title)),
             procs,
             &mut self.pstate,
         );
@@ -901,17 +1383,31 @@ impl App {
             f.render_widget(
                 Paragraph::new(vec![
                     Line::raw(""),
-                    Line::from("Walking your home directory (full pass, low priority)…").fg(DIM).centered(),
-                    Line::from(format!("{} files · {}", p.files.load(Ordering::Relaxed), human_bytes(p.bytes.load(Ordering::Relaxed)))).fg(ACCENT).centered(),
+                    Line::from("Walking your home directory (full pass, low priority)…")
+                        .fg(DIM)
+                        .centered(),
+                    Line::from(format!(
+                        "{} files · {}",
+                        p.files.load(Ordering::Relaxed),
+                        human_bytes(p.bytes.load(Ordering::Relaxed))
+                    ))
+                    .fg(ACCENT)
+                    .centered(),
                 ])
                 .block(Self::panel("Explorer")),
                 a,
             );
             return;
         }
-        let Some(node) = self.tree_node().cloned() else { return };
-        let crumbs = std::iter::once("~".to_string()).chain(self.tree_path.iter().cloned()).collect::<Vec<_>>().join(" › ");
-        let [main, side] = Layout::horizontal([Constraint::Percentage(66), Constraint::Percentage(34)]).areas(a);
+        let Some(node) = self.tree_node().cloned() else {
+            return;
+        };
+        let crumbs = std::iter::once("~".to_string())
+            .chain(self.tree_path.iter().cloned())
+            .collect::<Vec<_>>()
+            .join(" › ");
+        let [main, side] =
+            Layout::horizontal([Constraint::Percentage(66), Constraint::Percentage(34)]).areas(a);
         let max = node.children.first().map(|c| c.bytes).unwrap_or(1).max(1);
         let rows: Vec<Row> = node
             .children
@@ -920,33 +1416,73 @@ impl App {
                 let pct = c.bytes as f64 / node.bytes.max(1) as f64;
                 let w = (c.bytes as f64 / max as f64 * 24.0).round() as usize;
                 Row::new(vec![
-                    Line::from(format!("{}{}", c.name, if c.children.is_empty() { "" } else { "/" })).bold(),
-                    Line::from(vec!["█".repeat(w.max(1)).fg(if pct > 0.25 { ROSE } else if pct > 0.08 { AMBER } else { SKY }), "".into()]),
-                    Line::from(format!("{:.1}%", pct * 100.0)).fg(DIM).right_aligned(),
+                    Line::from(format!(
+                        "{}{}",
+                        c.name,
+                        if c.children.is_empty() { "" } else { "/" }
+                    ))
+                    .bold(),
+                    Line::from(vec![
+                        "█".repeat(w.max(1)).fg(if pct > 0.25 {
+                            ROSE
+                        } else if pct > 0.08 {
+                            AMBER
+                        } else {
+                            SKY
+                        }),
+                        "".into(),
+                    ]),
+                    Line::from(format!("{:.1}%", pct * 100.0))
+                        .fg(DIM)
+                        .right_aligned(),
                     Line::from(human_bytes(c.bytes)).right_aligned(),
                     Line::from(ago(c.newest)).fg(DIM).right_aligned(),
                 ])
             })
             .collect();
         f.render_stateful_widget(
-            Table::new(rows, [Constraint::Min(20), Constraint::Length(25), Constraint::Length(7), Constraint::Length(10), Constraint::Length(12)])
-                .header(Row::new(vec!["NAME", "", "SHARE", "SIZE", "TOUCHED"]).fg(DIM))
-                .row_highlight_style(Style::new().bg(LINE))
-                .block(Self::panel(&format!("{crumbs} · {}", human_bytes(node.bytes)))),
+            Table::new(
+                rows,
+                [
+                    Constraint::Min(20),
+                    Constraint::Length(25),
+                    Constraint::Length(7),
+                    Constraint::Length(10),
+                    Constraint::Length(12),
+                ],
+            )
+            .header(Row::new(vec!["NAME", "", "SHARE", "SIZE", "TOUCHED"]).fg(DIM))
+            .row_highlight_style(Style::new().bg(LINE))
+            .block(Self::panel(&format!(
+                "{crumbs} · {}",
+                human_bytes(node.bytes)
+            ))),
             main,
             &mut self.tstate,
         );
         let mut lines = vec![
             Line::from(vec!["files ".fg(DIM), format!("{}", node.files).into()]),
             Line::from(vec!["dirs  ".fg(DIM), format!("{}", node.dirs).into()]),
-            Line::from(vec!["small ".fg(DIM), human_bytes(node.other_bytes).into(), " in folded entries".fg(DIM)]),
+            Line::from(vec![
+                "small ".fg(DIM),
+                human_bytes(node.other_bytes).into(),
+                " in folded entries".fg(DIM),
+            ]),
             Line::raw(""),
             Line::from("LARGEST FILES HERE").fg(DIM).bold(),
         ];
         for (n, b) in &node.top_files {
-            lines.push(Line::from(vec![format!("{:>9}  ", human_bytes(*b)).fg(ACCENT), n.clone().into()]));
+            lines.push(Line::from(vec![
+                format!("{:>9}  ", human_bytes(*b)).fg(ACCENT),
+                n.clone().into(),
+            ]));
         }
-        f.render_widget(Paragraph::new(lines).block(Self::panel("Details")).wrap(Wrap { trim: true }), side);
+        f.render_widget(
+            Paragraph::new(lines)
+                .block(Self::panel("Details"))
+                .wrap(Wrap { trim: true }),
+            side,
+        );
     }
 
     fn draw_advisor(&self, f: &mut Frame, a: Rect) {
@@ -968,7 +1504,14 @@ impl App {
         let mut lines = vec![];
         if let Some(t0) = self.advising {
             let dots = ".".repeat((t0.elapsed().as_millis() / 400) as usize % 4);
-            lines.push(Line::from(format!(" thinking about {} findings{dots}  {:.0}s", self.report.as_ref().map(|r| r.findings.len()).unwrap_or(0), t0.elapsed().as_secs_f32())).fg(ACCENT));
+            lines.push(
+                Line::from(format!(
+                    " thinking about {} findings{dots}  {:.0}s",
+                    self.report.as_ref().map(|r| r.findings.len()).unwrap_or(0),
+                    t0.elapsed().as_secs_f32()
+                ))
+                .fg(ACCENT),
+            );
         } else {
             match &self.advice {
                 None => lines.push(Line::from(" Press a to ask the advisor what to reclaim first and how to stop it coming back.").fg(DIM)),
@@ -1004,7 +1547,12 @@ impl App {
                 }
             }
         }
-        f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }).block(Self::panel("Recommendations")), body);
+        f.render_widget(
+            Paragraph::new(lines)
+                .wrap(Wrap { trim: false })
+                .block(Self::panel("Recommendations")),
+            body,
+        );
     }
 
     fn draw_modal(&self, f: &mut Frame, area: Rect) {
@@ -1022,28 +1570,57 @@ impl App {
                     Line::from("Explorer    enter/→ open · backspace/← up · R rescan"),
                     Line::from("Advisor     a ask · p provider · s select picks"),
                     Line::raw(""),
-                    Line::from("Nothing is ever deleted without a dry-run preview and your y.").fg(DIM),
+                    Line::from("Nothing is ever deleted without a dry-run preview and your y.")
+                        .fg(DIM),
                 ],
                 70,
                 14,
             ),
             Modal::Detail(id) => {
-                let Some(fi) = self.report.as_ref().and_then(|r| r.findings.iter().find(|f| &f.id == id)) else { return };
+                let Some(fi) = self
+                    .report
+                    .as_ref()
+                    .and_then(|r| r.findings.iter().find(|f| &f.id == id))
+                else {
+                    return;
+                };
                 let mut l = vec![
                     Line::from(fi.title.clone()).bold(),
                     Line::from(fi.path.display().to_string()).fg(SKY),
                     Line::raw(""),
-                    Line::from(vec!["size     ".fg(DIM), human_bytes(fi.bytes).into(), format!("  ({} files)", fi.files).fg(DIM)]),
-                    Line::from(vec!["safety   ".fg(DIM), format!("{:?}", fi.safety).fg(safety_color(fi.safety))]),
-                    Line::from(vec!["owner    ".fg(DIM), fi.owner.clone().unwrap_or("—".into()).fg(VIOLET)]),
-                    Line::from(vec!["idle     ".fg(DIM), fi.age_days(self.report.as_ref().unwrap().generated_at).map(idle).unwrap_or("—".into()).into()]),
+                    Line::from(vec![
+                        "size     ".fg(DIM),
+                        human_bytes(fi.bytes).into(),
+                        format!("  ({} files)", fi.files).fg(DIM),
+                    ]),
+                    Line::from(vec![
+                        "safety   ".fg(DIM),
+                        format!("{:?}", fi.safety).fg(safety_color(fi.safety)),
+                    ]),
+                    Line::from(vec![
+                        "owner    ".fg(DIM),
+                        fi.owner.clone().unwrap_or("—".into()).fg(VIOLET),
+                    ]),
+                    Line::from(vec![
+                        "idle     ".fg(DIM),
+                        fi.age_days(self.report.as_ref().unwrap().generated_at)
+                            .map(idle)
+                            .unwrap_or("—".into())
+                            .into(),
+                    ]),
                     Line::from(vec!["action   ".fg(DIM), action_text(&fi.action).into()]),
                 ];
                 if let Some(p) = &fi.protected {
-                    l.push(Line::from(vec!["guard    ".fg(DIM), format!("🔒 {p}").fg(AMBER)]));
+                    l.push(Line::from(vec![
+                        "guard    ".fg(DIM),
+                        format!("🔒 {p}").fg(AMBER),
+                    ]));
                 }
                 if let Some(rt) = &fi.relocate_to {
-                    l.push(Line::from(vec!["or move  ".fg(DIM), rt.display().to_string().fg(SKY)]));
+                    l.push(Line::from(vec![
+                        "or move  ".fg(DIM),
+                        rt.display().to_string().fg(SKY),
+                    ]));
                 }
                 l.push(Line::raw(""));
                 l.push(Line::from(fi.reason.clone()).fg(DIM));
@@ -1053,27 +1630,64 @@ impl App {
                 let done = matches!(self.modal, Modal::Done(_));
                 let total: u64 = outcomes.iter().filter(|o| o.ok).map(|o| o.freed).sum();
                 let mut l = vec![Line::from(vec![
-                    if done { "Freed ".into() } else { "Will free ".into() },
+                    if done {
+                        "Freed ".into()
+                    } else {
+                        "Will free ".into()
+                    },
                     human_bytes(total).fg(ACCENT).bold(),
                     format!(" across {} items", outcomes.iter().filter(|o| o.ok).count()).into(),
                 ])];
                 l.push(Line::raw(""));
                 for o in outcomes.iter().take(18) {
-                    l.push(Line::from(vec![if o.ok { " ✔ ".fg(ACCENT) } else { " ✗ ".fg(ROSE) }, format!("{:<44}", trunc(&o.title, 44)).into(), trunc(&o.message, 60).fg(DIM)]));
+                    l.push(Line::from(vec![
+                        if o.ok {
+                            " ✔ ".fg(ACCENT)
+                        } else {
+                            " ✗ ".fg(ROSE)
+                        },
+                        format!("{:<44}", trunc(&o.title, 44)).into(),
+                        trunc(&o.message, 60).fg(DIM),
+                    ]));
                     if let Some(m) = &o.manual {
                         l.push(Line::from(format!("     run yourself: {m}")).fg(AMBER));
                     }
                 }
                 l.push(Line::raw(""));
-                l.push(if done { Line::from("any key to close").fg(DIM) } else { Line::from(vec![" y ".fg(BG).bg(ACCENT), " do it    ".into(), " esc ".fg(TEXT).bg(LINE), " cancel".into()]) });
-                (if done { "Cleanup finished".into() } else { "Preview — nothing deleted yet".into() }, l, 116, 26)
+                l.push(if done {
+                    Line::from("any key to close").fg(DIM)
+                } else {
+                    Line::from(vec![
+                        " y ".fg(BG).bg(ACCENT),
+                        " do it    ".into(),
+                        " esc ".fg(TEXT).bg(LINE),
+                        " cancel".into(),
+                    ])
+                });
+                (
+                    if done {
+                        "Cleanup finished".into()
+                    } else {
+                        "Preview — nothing deleted yet".into()
+                    },
+                    l,
+                    116,
+                    26,
+                )
             }
             Modal::Kill(pid, name) => (
                 "Stop process".into(),
                 vec![
                     Line::from(format!("{name} (pid {pid})")).bold(),
                     Line::raw(""),
-                    Line::from(vec![" y ".fg(BG).bg(AMBER), " SIGTERM   ".into(), " K ".fg(BG).bg(ROSE), " SIGKILL   ".into(), " esc ".fg(TEXT).bg(LINE), " cancel".into()]),
+                    Line::from(vec![
+                        " y ".fg(BG).bg(AMBER),
+                        " SIGTERM   ".into(),
+                        " K ".fg(BG).bg(ROSE),
+                        " SIGKILL   ".into(),
+                        " esc ".fg(TEXT).bg(LINE),
+                        " cancel".into(),
+                    ]),
                 ],
                 56,
                 7,
@@ -1081,12 +1695,22 @@ impl App {
         };
         let w = w.min(area.width - 4);
         let h = h.min(area.height - 2);
-        let r = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
+        let r = Rect {
+            x: area.x + (area.width - w) / 2,
+            y: area.y + (area.height - h) / 2,
+            width: w,
+            height: h,
+        };
         f.render_widget(Clear, r);
         f.render_widget(
-            Paragraph::new(lines)
-                .wrap(Wrap { trim: false })
-                .block(Block::bordered().border_type(BorderType::Rounded).border_style(Style::new().fg(ACCENT)).title(format!(" {title} ")).style(Style::new().bg(PANEL).fg(TEXT)).padding(ratatui::widgets::Padding::horizontal(1))),
+            Paragraph::new(lines).wrap(Wrap { trim: false }).block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::new().fg(ACCENT))
+                    .title(format!(" {title} "))
+                    .style(Style::new().bg(PANEL).fg(TEXT))
+                    .padding(ratatui::widgets::Padding::horizontal(1)),
+            ),
             r,
         );
     }
@@ -1129,7 +1753,9 @@ fn uptime(s: u64) -> String {
 
 fn short_home(p: &std::path::Path) -> String {
     let h = stratax_core::platform::home();
-    p.strip_prefix(&h).map(|r| format!("~/{}", r.display())).unwrap_or_else(|_| p.display().to_string())
+    p.strip_prefix(&h)
+        .map(|r| format!("~/{}", r.display()))
+        .unwrap_or_else(|_| p.display().to_string())
 }
 
 fn trunc(s: &str, n: usize) -> String {

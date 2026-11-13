@@ -32,7 +32,13 @@ impl Guard {
 
     #[cfg(test)]
     pub fn from_paths(paths: &[(&str, &str)]) -> Self {
-        Self { active: paths.iter().map(|(p, w)| (PathBuf::from(p), w.to_string())).collect(), procs: vec![] }
+        Self {
+            active: paths
+                .iter()
+                .map(|(p, w)| (PathBuf::from(p), w.to_string()))
+                .collect(),
+            procs: vec![],
+        }
     }
 
     /// Who is using `path` or anything below it. `PathBuf`'s ordering is
@@ -43,7 +49,10 @@ impl Guard {
     }
 
     pub fn cwds_of<'a>(&'a self, comm: &'a str) -> impl Iterator<Item = &'a Path> + 'a {
-        self.procs.iter().filter(move |p| p.name == comm).filter_map(|p| p.cwd.as_deref())
+        self.procs
+            .iter()
+            .filter(move |p| p.name == comm)
+            .filter_map(|p| p.cwd.as_deref())
     }
 
     pub fn is_running(&self, pattern: &str) -> bool {
@@ -62,7 +71,14 @@ pub fn worktree_repo(wt: &Path) -> Option<PathBuf> {
 
 /// Why a worktree must not be removed, if any reason exists.
 pub fn worktree_blocker(wt: &Path) -> Option<String> {
-    let git = |args: &[&str]| Command::new("git").arg("-C").arg(wt).args(args).output().ok();
+    let git = |args: &[&str]| {
+        Command::new("git")
+            .arg("-C")
+            .arg(wt)
+            .args(args)
+            .output()
+            .ok()
+    };
     let Some(st) = git(&["status", "--porcelain", "--untracked-files=normal"]) else {
         return Some("git not available — cannot verify".into());
     };
@@ -73,7 +89,9 @@ pub fn worktree_blocker(wt: &Path) -> Option<String> {
     if dirty > 0 {
         return Some(format!("{dirty} uncommitted/untracked change(s)"));
     }
-    let detached = git(&["symbolic-ref", "-q", "HEAD"]).map(|o| !o.status.success()).unwrap_or(true);
+    let detached = git(&["symbolic-ref", "-q", "HEAD"])
+        .map(|o| !o.status.success())
+        .unwrap_or(true);
     if detached {
         let on_branch = git(&["branch", "-a", "--contains", "HEAD", "--format=%(refname)"])
             .map(|o| !o.stdout.is_empty())

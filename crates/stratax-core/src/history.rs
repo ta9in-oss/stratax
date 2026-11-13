@@ -41,7 +41,9 @@ pub struct Mover {
 }
 
 pub fn data_dir() -> PathBuf {
-    let base = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).unwrap_or_else(|| crate::platform::home().join(".local/share"));
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| crate::platform::home().join(".local/share"));
     base.join("stratax")
 }
 
@@ -52,8 +54,17 @@ fn file() -> PathBuf {
 pub fn record_and_compare(r: &Report) -> anyhow::Result<Option<Growth>> {
     let snap = Snapshot {
         at: r.generated_at,
-        disks: r.disks.iter().filter_map(|d| Some((d.mount.as_ref()?.display().to_string(), d.used))).collect(),
-        paths: r.findings.iter().take(400).map(|f| (f.path.display().to_string(), f.bytes)).collect(),
+        disks: r
+            .disks
+            .iter()
+            .filter_map(|d| Some((d.mount.as_ref()?.display().to_string(), d.used)))
+            .collect(),
+        paths: r
+            .findings
+            .iter()
+            .take(400)
+            .map(|f| (f.path.display().to_string(), f.bytes))
+            .collect(),
     };
     let mut prev = load()?;
     std::fs::create_dir_all(data_dir())?;
@@ -61,16 +72,28 @@ pub fn record_and_compare(r: &Report) -> anyhow::Result<Option<Growth>> {
     let cutoff = snap.at - 30 * 86_400;
     if prev.first().is_some_and(|s| s.at < cutoff) {
         prev.retain(|s| s.at >= cutoff);
-        let body: String = prev.iter().filter_map(|s| serde_json::to_string(s).ok()).map(|l| l + "\n").collect();
+        let body: String = prev
+            .iter()
+            .filter_map(|s| serde_json::to_string(s).ok())
+            .map(|l| l + "\n")
+            .collect();
         std::fs::write(file(), body)?;
     }
-    let mut fh = std::fs::OpenOptions::new().create(true).append(true).open(file())?;
+    let mut fh = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(file())?;
     writeln!(fh, "{}", serde_json::to_string(&snap)?)?;
     // Movers: against the newest snapshot ≥ 10 min old (what changed lately).
     // Fill rate: against the oldest one within 7 days, so one burst (a
     // mutation run filling /tmp) does not read as "full in 5 hours".
-    let Some(recent) = prev.iter().rev().find(|s| snap.at - s.at >= 600) else { return Ok(None) };
-    let long = prev.iter().find(|s| snap.at - s.at <= 7 * 86_400).filter(|s| snap.at - s.at >= 3600);
+    let Some(recent) = prev.iter().rev().find(|s| snap.at - s.at >= 600) else {
+        return Ok(None);
+    };
+    let long = prev
+        .iter()
+        .find(|s| snap.at - s.at <= 7 * 86_400)
+        .filter(|s| snap.at - s.at >= 3600);
     let mut g = compare(recent, &snap, r);
     match long {
         Some(base) => g.disks = compare(base, &snap, r).disks,
@@ -87,14 +110,27 @@ pub struct Point {
 }
 
 pub fn series() -> Vec<Point> {
-    let mut v: Vec<Point> = load().unwrap_or_default().into_iter().map(|s| Point { at: s.at, disks: s.disks }).collect();
+    let mut v: Vec<Point> = load()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|s| Point {
+            at: s.at,
+            disks: s.disks,
+        })
+        .collect();
     v.sort_by_key(|p| p.at);
     v
 }
 
 fn load() -> anyhow::Result<Vec<Snapshot>> {
-    let Ok(f) = std::fs::File::open(file()) else { return Ok(vec![]) };
-    Ok(std::io::BufReader::new(f).lines().map_while(Result::ok).filter_map(|l| serde_json::from_str(&l).ok()).collect())
+    let Ok(f) = std::fs::File::open(file()) else {
+        return Ok(vec![]);
+    };
+    Ok(std::io::BufReader::new(f)
+        .lines()
+        .map_while(Result::ok)
+        .filter_map(|l| serde_json::from_str(&l).ok())
+        .collect())
 }
 
 fn compare(base: &Snapshot, now: &Snapshot, r: &Report) -> Growth {
@@ -108,16 +144,29 @@ fn compare(base: &Snapshot, now: &Snapshot, r: &Report) -> Growth {
             let delta = d.used as i64 - before as i64;
             let per_day = delta as f64 / days;
             let days_to_full = (per_day > 0.0).then(|| d.available as f64 / per_day);
-            Some(DiskGrowth { mount: m, delta, per_day, days_to_full })
+            Some(DiskGrowth {
+                mount: m,
+                delta,
+                per_day,
+                days_to_full,
+            })
         })
         .collect();
     let mut movers: Vec<Mover> = now
         .paths
         .iter()
-        .map(|(p, &b)| Mover { path: p.clone(), delta: b as i64 - *base.paths.get(p).unwrap_or(&0) as i64, now: b })
+        .map(|(p, &b)| Mover {
+            path: p.clone(),
+            delta: b as i64 - *base.paths.get(p).unwrap_or(&0) as i64,
+            now: b,
+        })
         .filter(|m| m.delta.unsigned_abs() > 64 << 20)
         .collect();
     movers.sort_by_key(|m| -m.delta);
     movers.truncate(15);
-    Growth { since: base.at, disks, movers }
+    Growth {
+        since: base.at,
+        disks,
+        movers,
+    }
 }

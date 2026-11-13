@@ -30,7 +30,12 @@ pub struct AdvisorConfig {
 
 impl Default for AdvisorConfig {
     fn default() -> Self {
-        Self { provider: Provider::ClaudeCode, model: None, base_url: None, api_key_env: None }
+        Self {
+            provider: Provider::ClaudeCode,
+            model: None,
+            base_url: None,
+            api_key_env: None,
+        }
     }
 }
 
@@ -47,7 +52,10 @@ impl AdvisorConfig {
     /// `~/.config/stratax/advisor.json`, then env overrides, then default.
     pub fn load() -> Self {
         let path = crate::platform::home().join(".config/stratax/advisor.json");
-        let mut c: AdvisorConfig = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        let mut c: AdvisorConfig = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
         match std::env::var("STRATAX_PROVIDER").ok().as_deref() {
             Some("agnes") => c = Self::agnes(),
             Some("anthropic") => c.provider = Provider::Anthropic,
@@ -155,10 +163,20 @@ pub fn advise(r: &Report, cfg: &AdvisorConfig) -> anyhow::Result<Advice> {
     };
     let mut advice: Advice = serde_json::from_value(extract_json(&raw)?)
         .map_err(|e| anyhow::anyhow!("advisor answered in an unexpected shape: {e}"))?;
-    advice.provider = format!("{:?}{}", cfg.provider, cfg.model.as_ref().map(|m| format!(" · {m}")).unwrap_or_default());
+    advice.provider = format!(
+        "{:?}{}",
+        cfg.provider,
+        cfg.model
+            .as_ref()
+            .map(|m| format!(" · {m}"))
+            .unwrap_or_default()
+    );
     // Drop anything that doesn't map to a real, unprotected finding.
     advice.recommendations.retain(|rec| {
-        r.findings.iter().any(|f| f.id == rec.id && (f.protected.is_none() || rec.verdict == "keep" || rec.verdict == "review"))
+        r.findings.iter().any(|f| {
+            f.id == rec.id
+                && (f.protected.is_none() || rec.verdict == "keep" || rec.verdict == "review")
+        })
     });
     advice.recommendations.sort_by_key(|x| x.priority);
     Ok(advice)
@@ -178,16 +196,38 @@ pub(crate) fn isolated_claude() -> Command {
 
 fn claude_code(ctx: &str, cfg: &AdvisorConfig) -> anyhow::Result<String> {
     let mut cmd = isolated_claude();
-    cmd.args(["-p", "--output-format", "json", "--no-session-persistence", "--tools", "", "--system-prompt", SYSTEM]);
+    cmd.args([
+        "-p",
+        "--output-format",
+        "json",
+        "--no-session-persistence",
+        "--tools",
+        "",
+        "--system-prompt",
+        SYSTEM,
+    ]);
     if let Some(m) = &cfg.model {
         cmd.args(["--model", m]);
     }
-    let mut child = cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()
-        .map_err(|e| anyhow::anyhow!("could not start `claude` (is Claude Code installed?): {e}"))?;
-    child.stdin.take().unwrap().write_all(format!("Scan:\n{ctx}").as_bytes())?;
+    let mut child = cmd
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            anyhow::anyhow!("could not start `claude` (is Claude Code installed?): {e}")
+        })?;
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(format!("Scan:\n{ctx}").as_bytes())?;
     let out = child.wait_with_output()?;
     if !out.status.success() {
-        anyhow::bail!("claude -p failed: {}", String::from_utf8_lossy(&out.stderr).trim());
+        anyhow::bail!(
+            "claude -p failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
     }
     let v: serde_json::Value = serde_json::from_slice(&out.stdout)?;
     if v["is_error"].as_bool() == Some(true) {
@@ -199,7 +239,10 @@ fn claude_code(ctx: &str, cfg: &AdvisorConfig) -> anyhow::Result<String> {
 fn anthropic(ctx: &str, cfg: &AdvisorConfig) -> anyhow::Result<String> {
     let env = cfg.api_key_env.as_deref().unwrap_or("ANTHROPIC_API_KEY");
     let key = std::env::var(env).map_err(|_| anyhow::anyhow!("{env} is not set"))?;
-    let base = cfg.base_url.as_deref().unwrap_or("https://api.anthropic.com");
+    let base = cfg
+        .base_url
+        .as_deref()
+        .unwrap_or("https://api.anthropic.com");
     let body = serde_json::json!({
         "model": cfg.model.as_deref().unwrap_or("claude-opus-5-5"),
         "max_tokens": 16000,
@@ -218,33 +261,58 @@ fn anthropic(ctx: &str, cfg: &AdvisorConfig) -> anyhow::Result<String> {
         .map_err(http_err)?
         .into_json()?;
     if resp["stop_reason"] == "refusal" {
-        anyhow::bail!("the model declined: {}", resp["stop_details"]["explanation"].as_str().unwrap_or("no details"));
+        anyhow::bail!(
+            "the model declined: {}",
+            resp["stop_details"]["explanation"]
+                .as_str()
+                .unwrap_or("no details")
+        );
     }
-    let text: String = resp["content"].as_array().into_iter().flatten().filter(|b| b["type"] == "text").filter_map(|b| b["text"].as_str()).collect();
+    let text: String = resp["content"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|b| b["type"] == "text")
+        .filter_map(|b| b["text"].as_str())
+        .collect();
     Ok(text)
 }
 
 fn openai_compat(ctx: &str, cfg: &AdvisorConfig) -> anyhow::Result<String> {
     let env = cfg.api_key_env.as_deref().unwrap_or("OPENAI_API_KEY");
     let key = std::env::var(env).map_err(|_| anyhow::anyhow!("{env} is not set"))?;
-    let base = cfg.base_url.as_deref().unwrap_or("https://apihub.agnes-ai.com/v1");
+    let base = cfg
+        .base_url
+        .as_deref()
+        .unwrap_or("https://apihub.agnes-ai.com/v1");
     let body = serde_json::json!({
         "model": cfg.model.as_deref().unwrap_or("agnes-2.5-pro-alpha"),
         "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": format!("Scan:\n{ctx}")}],
         "temperature": 0.2,
     });
-    let resp: serde_json::Value = ureq::post(&format!("{}/chat/completions", base.trim_end_matches('/')))
-        .set("authorization", &format!("Bearer {key}"))
-        .timeout(std::time::Duration::from_secs(300))
-        .send_json(body)
-        .map_err(http_err)?
-        .into_json()?;
-    Ok(resp["choices"][0]["message"]["content"].as_str().unwrap_or_default().to_string())
+    let resp: serde_json::Value =
+        ureq::post(&format!("{}/chat/completions", base.trim_end_matches('/')))
+            .set("authorization", &format!("Bearer {key}"))
+            .timeout(std::time::Duration::from_secs(300))
+            .send_json(body)
+            .map_err(http_err)?
+            .into_json()?;
+    Ok(resp["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string())
 }
 
 pub(crate) fn http_err(e: ureq::Error) -> anyhow::Error {
     match e {
-        ureq::Error::Status(code, r) => anyhow::anyhow!("HTTP {code}: {}", r.into_string().unwrap_or_default().chars().take(400).collect::<String>()),
+        ureq::Error::Status(code, r) => anyhow::anyhow!(
+            "HTTP {code}: {}",
+            r.into_string()
+                .unwrap_or_default()
+                .chars()
+                .take(400)
+                .collect::<String>()
+        ),
         other => anyhow::anyhow!("{other}"),
     }
 }
@@ -270,7 +338,13 @@ pub fn offline(r: &Report) -> Advice {
         .take(12)
         .map(|f| Recommendation {
             id: f.id.clone(),
-            priority: if f.preselected { 1 } else if f.safety == Safety::Safe { 2 } else { 3 },
+            priority: if f.preselected {
+                1
+            } else if f.safety == Safety::Safe {
+                2
+            } else {
+                3
+            },
             verdict: "reclaim".into(),
             rationale: format!("{} · {:?} · {}", human_bytes(f.bytes), f.safety, f.reason),
         })
@@ -285,5 +359,14 @@ pub fn offline(r: &Report) -> Advice {
     if r.disks.iter().any(|d| d.mount.is_none() && d.rotational) {
         prevention.push("Mount the idle HDD (add it to /etc/fstab) and move Docker's data-root, model caches and old projects onto it.".into());
     }
-    Advice { provider: "offline rules".into(), summary: r.insights.first().map(|i| i.title.clone()).unwrap_or_else(|| "Nothing urgent.".into()), recommendations: recs, prevention }
+    Advice {
+        provider: "offline rules".into(),
+        summary: r
+            .insights
+            .first()
+            .map(|i| i.title.clone())
+            .unwrap_or_else(|| "Nothing urgent.".into()),
+        recommendations: recs,
+        prevention,
+    }
 }

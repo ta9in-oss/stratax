@@ -176,8 +176,25 @@ pub const ARTIFACTS: &[ArtifactRule] = &[
 ];
 
 /// Hidden directories the project walker still descends into / matches.
-pub const WALK_HIDDEN_OK: &[&str] =
-    &[".claude", ".next", ".turbo", ".nuxt", ".svelte-kit", ".parcel-cache", ".angular", ".expo", ".venv", ".gradle", ".dart_tool", ".zig-cache", ".terraform", ".stryker-tmp", ".mutmut-cache", ".codex", ".cursor"];
+pub const WALK_HIDDEN_OK: &[&str] = &[
+    ".claude",
+    ".next",
+    ".turbo",
+    ".nuxt",
+    ".svelte-kit",
+    ".parcel-cache",
+    ".angular",
+    ".expo",
+    ".venv",
+    ".gradle",
+    ".dart_tool",
+    ".zig-cache",
+    ".terraform",
+    ".stryker-tmp",
+    ".mutmut-cache",
+    ".codex",
+    ".cursor",
+];
 
 pub fn expand(path: &str, home: &Path, tmp: &Path, uid: u32) -> PathBuf {
     let s = path.replace("{uid}", &uid.to_string());
@@ -185,7 +202,11 @@ pub fn expand(path: &str, home: &Path, tmp: &Path, uid: u32) -> PathBuf {
         home.join(rest)
     } else if let Some(rest) = s.strip_prefix("{tmp}") {
         let rest = rest.trim_start_matches('/');
-        if rest.is_empty() { tmp.to_path_buf() } else { tmp.join(rest) }
+        if rest.is_empty() {
+            tmp.to_path_buf()
+        } else {
+            tmp.join(rest)
+        }
     } else {
         PathBuf::from(s)
     }
@@ -193,16 +214,32 @@ pub fn expand(path: &str, home: &Path, tmp: &Path, uid: u32) -> PathBuf {
 
 pub fn action_for(how: How, path: &Path) -> Action {
     match how {
-        How::Delete | How::PerChild => Action::Delete { paths: vec![path.to_path_buf()] },
+        How::Delete | How::PerChild => Action::Delete {
+            paths: vec![path.to_path_buf()],
+        },
         How::Empty => Action::Delete {
-            paths: std::fs::read_dir(path).map(|rd| rd.flatten().map(|e| e.path()).collect()).unwrap_or_default(),
+            paths: std::fs::read_dir(path)
+                .map(|rd| rd.flatten().map(|e| e.path()).collect())
+                .unwrap_or_default(),
         },
         How::Review => Action::ReviewOnly,
-        How::Tool(p, a) => Action::RunTool { program: p.into(), args: a.iter().map(|s| s.to_string()).collect() },
+        How::Tool(p, a) => Action::RunTool {
+            program: p.into(),
+            args: a.iter().map(|s| s.to_string()).collect(),
+        },
     }
 }
 
 /// Claude Code names project temp dirs after the cwd with `/` and `.` → `-`.
 pub fn claude_slug(cwd: &Path) -> String {
-    cwd.to_string_lossy().chars().map(|c| if c == '/' || c == '.' || c == '_' { '-' } else { c }).collect()
+    cwd.to_string_lossy()
+        .chars()
+        .map(|c| {
+            if c == '/' || c == '.' || c == '_' {
+                '-'
+            } else {
+                c
+            }
+        })
+        .collect()
 }

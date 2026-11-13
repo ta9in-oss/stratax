@@ -96,7 +96,8 @@ pub struct Finding {
 
 impl Finding {
     pub fn age_days(&self, now: i64) -> Option<f64> {
-        self.last_activity.map(|t| (now - t).max(0) as f64 / 86_400.0)
+        self.last_activity
+            .map(|t| (now - t).max(0) as f64 / 86_400.0)
     }
 }
 
@@ -182,7 +183,11 @@ pub enum Severity {
 pub fn stable_id(rule: &str, path: &std::path::Path) -> String {
     // FNV-1a: tiny, deterministic across runs and platforms.
     let mut h: u64 = 0xcbf29ce484222325;
-    for b in rule.bytes().chain([0u8]).chain(path.as_os_str().as_encoded_bytes().iter().copied()) {
+    for b in rule
+        .bytes()
+        .chain([0u8])
+        .chain(path.as_os_str().as_encoded_bytes().iter().copied())
+    {
         h ^= b as u64;
         h = h.wrapping_mul(0x100000001b3);
     }

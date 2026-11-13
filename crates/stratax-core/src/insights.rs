@@ -10,25 +10,51 @@ pub fn derive(r: &Report) -> Vec<Insight> {
         (m.iter().map(|f| f.bytes).sum(), m.len())
     };
 
-    for d in r.disks.iter().filter(|d| d.mount.is_some() && d.total > 8 << 30) {
+    for d in r
+        .disks
+        .iter()
+        .filter(|d| d.mount.is_some() && d.total > 8 << 30)
+    {
         let ratio = d.used_ratio();
         if ratio >= 0.85 {
             let eta = r
                 .growth
                 .as_ref()
-                .and_then(|g| g.disks.iter().find(|x| Some(x.mount.as_str()) == d.mount.as_ref().and_then(|m| m.to_str())))
+                .and_then(|g| {
+                    g.disks.iter().find(|x| {
+                        Some(x.mount.as_str()) == d.mount.as_ref().and_then(|m| m.to_str())
+                    })
+                })
                 .and_then(|g| g.days_to_full)
                 .map(|days| format!(" At the current rate it is full in {days:.1} days."))
                 .unwrap_or_default();
             v.push(Insight {
-                severity: if ratio >= 0.93 { Severity::Critical } else { Severity::Warn },
-                title: format!("{} is {:.0}% full", d.mount.as_ref().unwrap().display(), ratio * 100.0),
-                detail: format!("{} free of {} on {} ({}).{eta}", human_bytes(d.available), human_bytes(d.total), d.device, d.kind()),
+                severity: if ratio >= 0.93 {
+                    Severity::Critical
+                } else {
+                    Severity::Warn
+                },
+                title: format!(
+                    "{} is {:.0}% full",
+                    d.mount.as_ref().unwrap().display(),
+                    ratio * 100.0
+                ),
+                detail: format!(
+                    "{} free of {} on {} ({}).{eta}",
+                    human_bytes(d.available),
+                    human_bytes(d.total),
+                    d.device,
+                    d.kind()
+                ),
             });
         }
     }
 
-    for d in r.disks.iter().filter(|d| d.mount.is_none() && d.total > 32 << 30) {
+    for d in r
+        .disks
+        .iter()
+        .filter(|d| d.mount.is_none() && d.total > 32 << 30)
+    {
         v.push(Insight {
             severity: Severity::Warn,
             title: format!("{} {} is not mounted", d.kind(), d.label.as_deref().unwrap_or(&d.name)),
@@ -41,7 +67,11 @@ pub fn derive(r: &Report) -> Vec<Insight> {
         });
     }
 
-    for d in r.disks.iter().filter(|d| d.mount.is_some() && !d.in_fstab && d.total > 32 << 30) {
+    for d in r
+        .disks
+        .iter()
+        .filter(|d| d.mount.is_some() && !d.in_fstab && d.total > 32 << 30)
+    {
         v.push(Insight {
             severity: Severity::Info,
             title: format!("{} {} is mounted, but not at boot", d.kind(), d.label.as_deref().unwrap_or(&d.name)),
@@ -54,13 +84,28 @@ pub fn derive(r: &Report) -> Vec<Insight> {
             ),
         });
     }
-    let reloc: Vec<&Finding> = r.findings.iter().filter(|f| f.relocate_to.is_some()).collect();
+    let reloc: Vec<&Finding> = r
+        .findings
+        .iter()
+        .filter(|f| f.relocate_to.is_some())
+        .collect();
     if !reloc.is_empty() {
         let b: u64 = reloc.iter().map(|f| f.bytes).sum();
         v.push(Insight {
             severity: Severity::Info,
-            title: format!("{} could move to the HDD instead of being deleted", human_bytes(b)),
-            detail: format!("{} — models, toolchains and review-only data you probably want to keep.", reloc.iter().take(4).map(|f| f.title.as_str()).collect::<Vec<_>>().join(", ")),
+            title: format!(
+                "{} could move to the HDD instead of being deleted",
+                human_bytes(b)
+            ),
+            detail: format!(
+                "{} — models, toolchains and review-only data you probably want to keep.",
+                reloc
+                    .iter()
+                    .take(4)
+                    .map(|f| f.title.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         });
     }
 
@@ -72,7 +117,12 @@ pub fn derive(r: &Report) -> Vec<Insight> {
             .filter(|f| f.category == Category::MutationTest)
             .filter_map(|f| f.path.parent().map(|p| p.display().to_string()))
             .collect();
-        let (mut_bytes, _) = sum(&|f| f.rule == "rust.target" && f.path.parent().is_some_and(|p| mutated.contains(&p.display().to_string())));
+        let (mut_bytes, _) = sum(&|f| {
+            f.rule == "rust.target"
+                && f.path
+                    .parent()
+                    .is_some_and(|p| mutated.contains(&p.display().to_string()))
+        });
         let tail = if mut_bytes > 0 {
             format!(" {} of that sits in projects that run mutation tests — every mutant triggers a rebuild, so incremental/ grows without bound.", human_bytes(mut_bytes))
         } else {
@@ -103,12 +153,23 @@ pub fn derive(r: &Report) -> Vec<Insight> {
         });
     }
 
-    let live: Vec<&str> = r.agents.iter().filter(|a| a.kind == crate::agents::AgentKind::Agent).map(|a| a.agent.as_str()).collect();
+    let live: Vec<&str> = r
+        .agents
+        .iter()
+        .filter(|a| a.kind == crate::agents::AgentKind::Agent)
+        .map(|a| a.agent.as_str())
+        .collect();
     if !live.is_empty() {
         v.push(Insight {
             severity: Severity::Info,
-            title: format!("{} agent process group(s) running: {}", live.len(), live.join(", ")),
-            detail: "Anything they hold open or use as a working directory is protected automatically.".into(),
+            title: format!(
+                "{} agent process group(s) running: {}",
+                live.len(),
+                live.join(", ")
+            ),
+            detail:
+                "Anything they hold open or use as a working directory is protected automatically."
+                    .into(),
         });
     }
 
