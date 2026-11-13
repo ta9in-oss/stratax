@@ -142,7 +142,9 @@ fn suggest_relocation(findings: &mut [Finding], disks: &[DiskInfo]) {
     let Some(home_dev) = home_dev else { return };
     let Some(target) = disks
         .iter()
-        .filter(|d| d.mount.is_some() && d.device != home_dev.device && d.available > 64 << 30 && !d.removable)
+        // Only disks that mount at boot: otherwise every moved folder becomes a
+        // dangling symlink after a reboot until something mounts the disk.
+        .filter(|d| d.mount.is_some() && d.in_fstab && d.device != home_dev.device && d.available > 64 << 30 && !d.removable)
         .max_by_key(|d| d.available)
     else {
         return;

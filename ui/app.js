@@ -255,8 +255,12 @@ async function boot() {
     console.warn('last_report failed', e);
   }
   renderAll();
-  startScan();
+  // A full walk touches millions of files while agents are compiling: only
+  // rescan on launch when the saved report is stale (Rescan is one click).
+  const age = S.report ? Date.now() / 1000 - S.report.generated_at : Infinity;
+  if (age > FRESH_SECS) startScan();
 }
+const FRESH_SECS = 30 * 60;
 boot();
 
 export { api, isMock, fmtBytes };

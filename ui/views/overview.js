@@ -3,6 +3,7 @@ import { t, fmtPct, fmtBytes, fmtAge } from '../i18n.js';
 import { icon, esc, B, L, CATS, catColor, rich, codeLine, selectionBytes } from '../ui.js';
 import { openCleanup } from './cleanup.js';
 import { setCategoryFilter } from './findings.js';
+import { trendPanel, draw as drawTrend } from './trend.js';
 
 const SEV = { critical: 0, warn: 1, info: 2 };
 const ROW = 30;
@@ -172,7 +173,9 @@ export default {
       <div class="ov-head">${rootPanel(r)}${reclaimPanel(r)}</div>
       <div class="section-t">${esc(t('ov.disks'))}</div>
       <div class="disks ${disks.some(isIdleHdd) ? 'has-idle' : ''}">${disks.map((d) => diskCard(d, r)).join('')}</div>
+      ${trendPanel(r)}
       <div class="ov-grid">${strataPanel(r)}${insightsPanel(r)}</div>`;
+    drawTrend(r);
   },
   mount(el) {
     el.addEventListener('mouseover', hover);

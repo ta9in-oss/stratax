@@ -148,6 +148,13 @@ const dict = {
       select_refs: { one: 'Select the mentioned finding', other: 'Select the {count} mentioned findings' },
       no_reply: 'The provider returned an empty reply.',
     },
+    tr: {
+      title: 'Disk use over time', sub: '{mount} · every scan, last 30 days', now: 'Used now', of: 'of {size}',
+      week: 'Last 7 days', outlook: 'Outlook', full_in: { one: 'Full in about 1 day', other: 'Full in about {count} days' },
+      not_filling: 'Not filling up', full: 'Full', used: 'used', free: 'free',
+      empty: 'The trend appears after a few scans on different days.',
+      aria: 'Disk use went from {from} to {to} across {n} scans.',
+    },
     st: {
       title: 'Settings', lang: 'Language', theme: 'Theme', dark: 'Dark', light: 'Light',
       roots: 'Scan roots', roots_hint: 'Leave empty to scan your home folder and the usual system caches.',
@@ -305,6 +312,13 @@ const dict = {
       foot: 'يرى المستشار الأحجام والمسارات والأعمار وأسماء العمليات، لا محتوى الملفات. ولا يستطيع حذف أو تشغيل أي شيء.',
       select_refs: { one: 'حدّد النتيجة المذكورة', two: 'حدّد النتيجتين المذكورتين', few: 'حدّد النتائج {count} المذكورة', many: 'حدّد الـ{count} نتيجة المذكورة', other: 'حدّد الـ{count} نتيجة المذكورة' },
       no_reply: 'أعاد المزوّد ردًّا فارغًا.',
+    },
+    tr: {
+      title: 'استخدام القرص عبر الزمن', sub: '{mount} · كل فحص، آخر 30 يومًا', now: 'المستخدم الآن', of: 'من {size}',
+      week: 'آخر 7 أيام', outlook: 'التوقّع', full_in: { one: 'يمتلئ خلال يوم تقريبًا', two: 'يمتلئ خلال يومين تقريبًا', few: 'يمتلئ خلال {count} أيام تقريبًا', many: 'يمتلئ خلال {count} يومًا تقريبًا', other: 'يمتلئ خلال {count} يوم تقريبًا' },
+      not_filling: 'لا يمتلئ حاليًا', full: 'ممتلئ', used: 'مستخدم', free: 'متاح',
+      empty: 'يظهر المنحنى بعد عدة فحوص في أيام مختلفة.',
+      aria: 'انتقل استخدام القرص من {from} إلى {to} عبر {n} فحصًا.',
     },
     st: {
       title: 'الإعدادات', lang: 'اللغة', theme: 'المظهر', dark: 'داكن', light: 'فاتح',

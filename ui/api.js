@@ -97,6 +97,10 @@ export const api = {
     if (T) return invoke('last_report');
     return mockReport();
   },
+  async getHistory() {
+    if (T) return invoke('get_history');
+    return load('history');
+  },
   async runScan(roots) {
     if (T) return invoke('run_scan', { roots: roots && roots.length ? roots : null });
     const r = await mockReport();

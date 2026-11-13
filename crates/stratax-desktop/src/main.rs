@@ -58,6 +58,12 @@ async fn get_tree(app: tauri::AppHandle, path: String) -> R<walk::DirNode> {
     Ok(node)
 }
 
+/// Used bytes per mount at every past scan (≤ 30 days).
+#[tauri::command]
+fn get_history() -> Vec<stratax_core::history::Point> {
+    stratax_core::history::series()
+}
+
 #[tauri::command]
 fn cancel_scan(state: State<'_, AppState>) {
     if let Some(p) = state.progress.lock().unwrap().as_ref() {
@@ -167,7 +173,7 @@ fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
-            last_report, run_scan, get_tree, cancel_scan, get_resources, kill_process,
+            last_report, get_history, run_scan, get_tree, cancel_scan, get_resources, kill_process,
             get_advisor_config, set_advisor_config, advise, advisor_chat, cancel_chat, clean
         ])
         .run(tauri::generate_context!())

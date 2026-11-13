@@ -79,6 +79,19 @@ pub fn record_and_compare(r: &Report) -> anyhow::Result<Option<Growth>> {
     Ok(Some(g))
 }
 
+/// One point per past scan: used bytes per mount. For the trend chart.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Point {
+    pub at: i64,
+    pub disks: HashMap<String, u64>,
+}
+
+pub fn series() -> Vec<Point> {
+    let mut v: Vec<Point> = load().unwrap_or_default().into_iter().map(|s| Point { at: s.at, disks: s.disks }).collect();
+    v.sort_by_key(|p| p.at);
+    v
+}
+
 fn load() -> anyhow::Result<Vec<Snapshot>> {
     let Ok(f) = std::fs::File::open(file()) else { return Ok(vec![]) };
     Ok(std::io::BufReader::new(f).lines().map_while(Result::ok).filter_map(|l| serde_json::from_str(&l).ok()).collect())

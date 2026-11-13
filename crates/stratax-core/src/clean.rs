@@ -158,10 +158,37 @@ fn relocate(src: &Path, root: &Path, dry: bool) -> Result<String, String> {
     if dry {
         return Ok(format!("would move to {} and leave a symlink", dest.display()));
     }
-    std::fs::create_dir_all(dest.parent().unwrap()).map_err(|e| e.to_string())?;
-    run("mv", &[src.to_string_lossy().into(), dest.to_string_lossy().into()])?;
-    std::os::unix::fs::symlink(&dest, src).map_err(|e| e.to_string())?;
+    move_with_symlink(src, &dest)?;
     Ok(format!("moved to {}", dest.display()))
+}
+
+/// Move `src` to `dest` (usually on another disk) and leave a symlink behind.
+/// Crash-safe: the data is copied to `dest.partial` and renamed into place
+/// before the original is touched; the original is renamed aside (atomic on
+/// one filesystem), the symlink put in its place, and only then deleted. An
+/// interruption at any step leaves either the original or a complete copy.
+pub fn move_with_symlink(src: &Path, dest: &Path) -> Result<(), String> {
+    let meta = std::fs::symlink_metadata(src).map_err(|e| format!("{}: {e}", src.display()))?;
+    if meta.file_type().is_symlink() {
+        return Err(format!("{} is already a symlink", src.display()));
+    }
+    if dest.exists() {
+        return Err(format!("{} already exists", dest.display()));
+    }
+    let parent = dest.parent().ok_or("destination has no parent")?;
+    std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    let partial = dest.with_file_name(format!("{}.partial", dest.file_name().unwrap().to_string_lossy()));
+    let _ = std::fs::remove_dir_all(&partial);
+    run("cp", &["-a".into(), "--reflink=auto".into(), src.to_string_lossy().into(), partial.to_string_lossy().into()])?;
+    std::fs::rename(&partial, dest).map_err(|e| e.to_string())?;
+    let aside = src.with_file_name(format!("{}.stratax-old", src.file_name().unwrap().to_string_lossy()));
+    std::fs::rename(src, &aside).map_err(|e| format!("copied, but could not swap the original: {e}"))?;
+    if let Err(e) = std::os::unix::fs::symlink(dest, src) {
+        let _ = std::fs::rename(&aside, src);
+        return Err(format!("copied, but could not create the symlink (original restored): {e}"));
+    }
+    let r = if meta.is_dir() { std::fs::remove_dir_all(&aside) } else { std::fs::remove_file(&aside) };
+    r.map_err(|e| format!("moved, but {} is still on the old disk: {e}", aside.display()))
 }
 
 fn run(program: &str, args: &[String]) -> Result<String, String> {
@@ -202,6 +229,41 @@ mod tests {
         assert!(out[0].freed > 0);
         assert_eq!(out[1].freed, 0, "{}", out[1].message);
     }
+    #[test]
+    fn move_with_symlink_keeps_data_and_leaves_a_link() {
+        let t = tempfile::tempdir().unwrap();
+        let src = t.path().join("home/models");
+        std::fs::create_dir_all(src.join("sub")).unwrap();
+        std::fs::write(src.join("sub/w.bin"), b"weights").unwrap();
+        let dest = t.path().join("hdd/stratax-relocated/models");
+        move_with_symlink(&src, &dest).unwrap();
+        assert!(std::fs::symlink_metadata(&src).unwrap().file_type().is_symlink());
+        assert_eq!(std::fs::read(src.join("sub/w.bin")).unwrap(), b"weights", "readable through the link");
+        assert!(!t.path().join("home/models.stratax-old").exists());
+        assert!(!t.path().join("hdd/stratax-relocated/models.partial").exists());
+        // Moving again is refused: it is a symlink now, and the destination exists.
+        assert!(move_with_symlink(&src, &dest).is_err());
+    }
+
+    /// Cross-device move: `STRATAX_XDEV_DIR=/mnt/other-disk/tmp cargo test -- --ignored xdev`
+    #[test]
+    #[ignore]
+    fn xdev_move_with_symlink() {
+        let other = std::path::PathBuf::from(std::env::var("STRATAX_XDEV_DIR").expect("set STRATAX_XDEV_DIR"));
+        let t = tempfile::tempdir().unwrap();
+        let src = t.path().join("cache");
+        std::fs::create_dir_all(src.join("a/b")).unwrap();
+        std::fs::write(src.join("a/b/f"), vec![3u8; 1 << 20]).unwrap();
+        std::os::unix::fs::symlink("b/f", src.join("a/rel-link")).unwrap();
+        let o = tempfile::tempdir_in(&other).unwrap();
+        let dest = o.path().join("cache");
+        move_with_symlink(&src, &dest).unwrap();
+        use std::os::unix::fs::MetadataExt;
+        assert_ne!(std::fs::metadata(t.path()).unwrap().dev(), std::fs::metadata(&dest).unwrap().dev(), "must cross devices");
+        assert_eq!(std::fs::read(src.join("a/rel-link")).unwrap().len(), 1 << 20, "relative links survive");
+        std::fs::remove_file(&src).unwrap();
+    }
+
     #[test]
     fn refuses_dangerous_paths() {
         let home = platform::home();
